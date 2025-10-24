@@ -36,16 +36,20 @@ class Main(tk.Tk):
 class WelcomePage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
+        self.controller = controller
         label = ttk.Label(self, text="Welcome to the DCM Interface", font=("Arial", 16))
         label.pack(pady=30)
 
         ttk.Label(self, text="Username").pack()
-        ttk.Entry(self).pack()
+        self.username_entry = ttk.Entry(self)
+        self.username_entry.pack()
 
         ttk.Label(self, text="Password").pack()
-        ttk.Entry(self).pack()
+        self.password_entry = ttk.Entry(self, show="*")
+        self.password_entry.pack()
+        
 
-        login_btn = ttk.Button(self, text="Login", command=lambda: controller.show_frame(ModeSelectPage))
+        login_btn = ttk.Button(self, text="Login", command=self.login)
         login_btn.pack(pady=10)
 
         login_btn = ttk.Button(self, text="Register New User", command=lambda: controller.show_frame(RegisterUserPage))
@@ -53,6 +57,16 @@ class WelcomePage(tk.Frame):
 
         quit_btn = ttk.Button(self, text="Quit", command=controller.destroy)
         quit_btn.pack(pady=10)
+    
+    def login(self):
+        
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        if user_db.check_login(username, password):
+            self.controller.show_frame(ModeSelectPage)
+        else:
+            print("login failed")
 
 
 
