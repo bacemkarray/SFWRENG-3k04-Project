@@ -37,6 +37,12 @@ class WelcomePage(tk.Frame):
         super().__init__(parent)
         label = ttk.Label(self, text="Welcome to the DCM Interface", font=("Arial", 16))
         label.pack(pady=30)
+        
+        ttk.Label(self, text="Username").pack()
+        ttk.Entry(self).pack()
+
+        ttk.Label(self, text="Password").pack()
+        ttk.Entry(self).pack()
 
         login_btn = ttk.Button(self, text="Login", command=lambda: controller.show_frame(ModeSelectPage))
         login_btn.pack(pady=10)
