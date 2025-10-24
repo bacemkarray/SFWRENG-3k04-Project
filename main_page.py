@@ -6,19 +6,23 @@ class Main(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("DCM Interface Demo")
-        self.geometry("500x300")
-        self.resizable(False, False)
+        self.state('zoomed')  # Windows
+        self.resizable(True, True)
 
-        # Container for all frames
-        container = tk.Frame(self)
-        container.pack(fill="both", expand=True)
+        # Create a main container that centers everything
+        main_container = tk.Frame(self)
+        main_container.pack(fill="both", expand=True)
+        
+        # Create a centered frame inside the main container
+        centered_frame = tk.Frame(main_container)
+        centered_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         # Dictionary to store page frames
         self.frames = {}
 
         # Register the page classes here
         for F in (WelcomePage, ModeSelectPage, ParameterPage, RegisterUserPage):
-            frame = F(container, self)
+            frame = F(centered_frame, self)  # Use centered_frame as parent
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
@@ -29,7 +33,6 @@ class Main(tk.Tk):
         """Raise the given frame to the front."""
         frame = self.frames[page_class]
         frame.tkraise()
-
 
 # ---------- Individual Pages ---------- #
 
