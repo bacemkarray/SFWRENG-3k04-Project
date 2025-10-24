@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+import user_db
 
 class Main(tk.Tk):
     def __init__(self):
@@ -16,7 +17,7 @@ class Main(tk.Tk):
         self.frames = {}
 
         # Register the page classes here
-        for F in (WelcomePage, ModeSelectPage, ParameterPage):
+        for F in (WelcomePage, ModeSelectPage, ParameterPage, RegisterUserPage):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -37,7 +38,7 @@ class WelcomePage(tk.Frame):
         super().__init__(parent)
         label = ttk.Label(self, text="Welcome to the DCM Interface", font=("Arial", 16))
         label.pack(pady=30)
-        
+
         ttk.Label(self, text="Username").pack()
         ttk.Entry(self).pack()
 
@@ -47,8 +48,30 @@ class WelcomePage(tk.Frame):
         login_btn = ttk.Button(self, text="Login", command=lambda: controller.show_frame(ModeSelectPage))
         login_btn.pack(pady=10)
 
+        login_btn = ttk.Button(self, text="Register New User", command=lambda: controller.show_frame(RegisterUserPage))
+        login_btn.pack(pady=10)
+
         quit_btn = ttk.Button(self, text="Quit", command=controller.destroy)
         quit_btn.pack(pady=10)
+
+
+
+class RegisterUserPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        ttk.Label(self, text="Register New User", font=("Arial", 14)).pack(pady=20)
+
+        ttk.Label(self, text="Username").pack()
+        ttk.Entry(self).pack()
+
+        ttk.Label(self, text="Password").pack()
+        ttk.Entry(self).pack()
+
+        ttk.Label(self, text="Confirm Password").pack()
+        ttk.Entry(self).pack()
+
+        ttk.Button(self, text="Back to Welcome", command=lambda: controller.show_frame(WelcomePage)).pack(pady=20)
+
 
 
 class ModeSelectPage(tk.Frame):
