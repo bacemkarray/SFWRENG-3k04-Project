@@ -14,16 +14,18 @@ def save_users(data):
 def register_user(username, password):
     data = load_users()
     # Can't register multiple users with same username
+    if len(data) == 10:
+        return "Max users reached."
     for user in data:
         if user["username"] == username:
-            return False
+            return "Username already exists."
 
     data.append({
         "username": username, 
         "password": password
         })
     save_users(data)    
-    return True
+    return "New user created."
 
 
 def check_login(username, password):
