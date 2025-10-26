@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 import user_db
 
 class Main(tk.Tk):
@@ -69,26 +70,52 @@ class WelcomePage(tk.Frame):
         if user_db.check_login(username, password):
             self.controller.show_frame(ModeSelectPage)
         else:
-            print("login failed")
+            tk.messagebox.showerror("Login Failed", "Incorrect username or password")
 
 
 
 class RegisterUserPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-        ttk.Label(self, text="Register New User", font=("Arial", 14)).pack(pady=20)
+        self.controller = controller
+        label = ttk.Label(self, text="Welcome to the DCM Interface", font=("Arial", 16))
+        label.pack(pady=30)
 
-        ttk.Label(self, text="Username").pack()
-        ttk.Entry(self).pack()
+        ttk.Label(self, text="New Username").pack()
+        self.username_entry = ttk.Entry(self)
+        self.username_entry.pack()
 
-        ttk.Label(self, text="Password").pack()
-        ttk.Entry(self).pack()
+        ttk.Label(self, text="New Password").pack()
+        self.password_entry = ttk.Entry(self, show="*")
+        self.password_entry.pack()
 
         ttk.Label(self, text="Confirm Password").pack()
-        ttk.Entry(self).pack()
+        self.password_confirm_entry = ttk.Entry(self, show="*")
+        self.password_confirm_entry.pack()
+
+        login_btn = ttk.Button(self, text="Register", command=self.register)
+        login_btn.pack(pady=10)
 
         ttk.Button(self, text="Back to Welcome", command=lambda: controller.show_frame(WelcomePage)).pack(pady=20)
+    
+    def register(self):
+        
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+        password_confirm = self.password_confirm_entry.get()
 
+        if password == password_confirm:
+            if user_db.register_user == "Max users reached.":
+                tk.messagebox.showerror("Registration Failed", "Max users reached")
+            elif user_db.register_user == "Username already exists.":
+                tk.messagebox.showerror("Registration Failed", "Username already taken")
+            else:
+                user_db.register_user(username, password)
+                tk.messagebox.showinfo("", "New user created")
+                self.controller.show_frame(WelcomePage)
+
+        else:
+            tk.messagebox.showerror("Registration Failed", "Passwords do not match")
 
 
 class ModeSelectPage(tk.Frame):
