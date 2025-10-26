@@ -153,6 +153,8 @@ class ModeSelectPage(tk.Frame):
 
         ttk.Label(self, text="Select Pacing Mode", font=("Arial", 14)).pack(pady=20)
 
+        # Used lambda to control when the select_mode function is called.
+        # Without lambda's, the function calls immediately on program execution, not on button press
         ttk.Button(self, text="AOO", command=lambda: self.select_mode("AOO")).pack(pady=5)
         ttk.Button(self, text="AAI", command=lambda: self.select_mode("AAI")).pack(pady=5)
         ttk.Button(self, text="VOO", command=lambda: self.select_mode("VOO")).pack(pady=5)
