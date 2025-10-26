@@ -37,9 +37,11 @@ class Main(tk.Tk):
         self.set_connection_status(False)
 
     def show_frame(self, page_class):
-        """Raise the given frame to the front."""
+        # bring the given frame to the front so that it is actually visible
         frame = self.frames[page_class]
         frame.tkraise()
+        if page_class == ParameterPage:
+            frame.show_parameters()
 
     def set_connection_status(self, connected: bool):
         self.status_canvas.delete("all")
@@ -161,19 +163,52 @@ class ModeSelectPage(tk.Frame):
         self.controller.show_frame(ParameterPage)
 
 
+
 class ParameterPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
-        ttk.Label(self, text="Parameter Settings", font=("Arial", 14)).pack(pady=15)
+        self.controller = controller
+        self.widgets = {}
 
-        ttk.Label(self, text="Lower Rate Limit:").pack()
-        ttk.Entry(self).pack()
+        self.title = ttk.Label(self, text="", font=("Arial", 14))
+        self.title.pack(pady=10)
 
-        ttk.Label(self, text="Upper Rate Limit:").pack()
-        ttk.Entry(self).pack()
+        self.form_frame = tk.Frame(self)
+        self.form_frame.pack(pady=10)
 
-        ttk.Button(self, text="Save", command=lambda: print("Parameters saved")).pack(pady=10)
-        ttk.Button(self, text="Back to Mode Select", command=lambda: controller.show_frame(ModeSelectPage)).pack(pady=10)
+        self.back_button = ttk.Button(self, text="Back to Modes", command=self.go_back)
+        self.back_button.pack(pady=10)
+
+    def show_parameters(self):
+        # Needed to clear the frame if another mode has already been selected before
+        for widget in self.form_frame.winfo_children():
+            widget.destroy()
+        self.widgets.clear()
+
+        mode = self.controller.current_mode
+        self.title.config(text=f"{mode} Parameters")
+
+        # Mode-specific param lists
+        if mode == "AOO":
+            params = ["Lower Rate Limit", "Upper Rate Limit", "Atrial Amplitude", "Atrial Pulse Width"]
+        elif mode == "AAI":
+            params = ["Lower Rate Limit", "Upper Rate Limit", "Atrial Amplitude", "Atrial Pulse Width", "ARP"]
+        elif mode == "VOO":
+            params = ["Lower Rate Limit", "Upper Rate Limit", "Ventricular Amplitude", "Ventricular Pulse Width"]
+        elif mode == "VVI":
+            params = ["Lower Rate Limit", "Upper Rate Limit", "Ventricular Amplitude", "Ventricular Pulse Width", "VRP"]
+        else:
+            params = []
+
+        # Display entries
+        for p in params:
+            ttk.Label(self.form_frame, text=p).pack()
+            entry = ttk.Entry(self.form_frame)
+            entry.pack(pady=3)
+            self.widgets[p] = entry
+    
+    def go_back(self):
+        self.controller.show_frame(ModeSelectPage)
 
 
 if __name__ == "__main__":
