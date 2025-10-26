@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
 import user_db
 
 class Main(tk.Tk):
@@ -18,6 +17,10 @@ class Main(tk.Tk):
         self.status_label = ttk.Label(self.status_frame, text="Pacemaker Disconnected", font=("Arial", 10))
         self.status_label.pack(side="left", padx=5)
 
+        # By default
+        self.pacemaker_connected = False
+        self.set_connection_status(self.pacemaker_connected)
+
         # Container for all frames
         container = tk.Frame(self)
         container.pack(fill="both", expand=True)
@@ -34,8 +37,6 @@ class Main(tk.Tk):
         # Show welcome page by default
         self.show_frame(WelcomePage)
 
-        self.set_connection_status(False)
-
     def show_frame(self, page_class):
         # bring the given frame to the front so that it is actually visible
         frame = self.frames[page_class]
@@ -44,6 +45,7 @@ class Main(tk.Tk):
             frame.show_parameters()
 
     def set_connection_status(self, connected: bool):
+        self.pacemaker_connected = connected 
         self.status_canvas.delete("all")
         if connected:
             self.status_canvas.create_oval(2, 2, 18, 18, fill="green")
@@ -178,6 +180,13 @@ class ParameterPage(tk.Frame):
 
         self.back_button = ttk.Button(self, text="Back to Modes", command=self.go_back)
         self.back_button.pack(pady=10)
+        
+        self.upload_msg = ttk.Label(self, text="", foreground="red")
+        self.upload_msg.pack(pady=5)
+
+        self.upload_button = ttk.Button(self, text="Upload to Pacemaker",
+                                command=self.upload_to_pacemaker)
+        self.upload_button.pack(pady=5)
 
     def show_parameters(self):
         # Needed to clear the frame if another mode has already been selected before
@@ -206,6 +215,17 @@ class ParameterPage(tk.Frame):
             entry = ttk.Entry(self.form_frame)
             entry.pack(pady=3)
             self.widgets[p] = entry
+
+
+    def upload_to_pacemaker(self):
+        if not self.controller.pacemaker_connected:
+            self.upload_msg.config(text="Cannot upload - Pacemaker not connected", foreground="red")
+            return
+
+        # If connected: pretend to upload (placeholder for real serial comm)
+        self.upload_msg.config(text="Parameters uploaded successfully!", foreground="green")
+        print("UPLOAD:", self.controller.current_user, self.controller.current_mode)
+    
     
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
