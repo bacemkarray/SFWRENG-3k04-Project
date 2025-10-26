@@ -221,11 +221,6 @@ class ParameterPage(tk.Frame):
         if not self.controller.pacemaker_connected:
             self.upload_msg.config(text="Cannot upload - Pacemaker not connected", foreground="red")
             return
-
-        # If connected: pretend to upload (placeholder for real serial comm)
-        self.upload_msg.config(text="Parameters uploaded successfully!", foreground="green")
-        print("UPLOAD:", self.controller.current_user, self.controller.current_mode)
-    
     
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
