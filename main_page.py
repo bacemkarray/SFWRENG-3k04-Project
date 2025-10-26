@@ -145,13 +145,20 @@ class RegisterUserPage(tk.Frame):
 class ModeSelectPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
+        self.controller = controller
+
         ttk.Label(self, text="Select Pacing Mode", font=("Arial", 14)).pack(pady=20)
 
-        # Example buttons for pacing modes
-        ttk.Button(self, text="AOO Mode", command=lambda: controller.show_frame(ParameterPage)).pack(pady=5)
-        ttk.Button(self, text="VVI Mode", command=lambda: controller.show_frame(ParameterPage)).pack(pady=5)
+        ttk.Button(self, text="AOO", command=lambda: self.select_mode("AOO")).pack(pady=5)
+        ttk.Button(self, text="AAI", command=lambda: self.select_mode("AAI")).pack(pady=5)
+        ttk.Button(self, text="VOO", command=lambda: self.select_mode("VOO")).pack(pady=5)
+        ttk.Button(self, text="VVI", command=lambda: self.select_mode("VVI")).pack(pady=5)
 
-        ttk.Button(self, text="Back to Welcome", command=lambda: controller.show_frame(WelcomePage)).pack(pady=20)
+        ttk.Button(self, text="Back", command=lambda: controller.show_frame(WelcomePage)).pack(pady=20)
+
+    def select_mode(self, mode):
+        self.controller.current_mode = mode
+        self.controller.show_frame(ParameterPage)
 
 
 class ParameterPage(tk.Frame):
