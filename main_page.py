@@ -213,11 +213,18 @@ class ParameterPage(tk.Frame):
 
         # Display entries
         for p in params:
-            ttk.Label(self.form_frame, text=p).pack()
-            entry = ttk.Entry(self.form_frame)
-            entry.pack(pady=3)
+            row = tk.Frame(self.form_frame)
+            row.pack(pady=2, fill="x")
+
+            ttk.Label(row, text=p, width=20, anchor="w").pack(side="left", padx=5)
+
+            entry = ttk.Entry(row, width=12)
+            entry.pack(side="left", padx=5)
             self.widgets[p] = entry
 
+            # Placeholder for current pacemaker value until we actually program this (D2)
+            current_label = ttk.Label(row, text="On-Device: --", width=15, anchor="w", foreground="gray")
+            current_label.pack(side="left", padx=5)
 
     def upload_to_pacemaker(self):
         if not self.controller.pacemaker_connected:
