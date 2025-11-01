@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 import user_db
+import parameters
 
 class Main(tk.Tk):
     def __init__(self):
@@ -18,7 +19,7 @@ class Main(tk.Tk):
         self.status_label.pack(side="left", padx=5)
 
         # By default
-        self.pacemaker_connected = False
+        self.pacemaker_connected = True
         self.set_connection_status(self.pacemaker_connected)
 
         # Container for all frames
@@ -230,6 +231,16 @@ class ParameterPage(tk.Frame):
         if not self.controller.pacemaker_connected:
             self.upload_msg.config(text="Cannot upload - Pacemaker not connected", foreground="red")
             return
+            
+        # Validate parameters
+        for param_name, entry in self.widgets.items():
+            value = entry.get().strip()
+            valid, msg = parameters.validate_param(param_name, value)
+            if not valid:
+                self.upload_msg.config(text=msg, foreground="red")
+                return
+            else:
+                self.upload_msg.config(text="hi", foreground="green")
     
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
