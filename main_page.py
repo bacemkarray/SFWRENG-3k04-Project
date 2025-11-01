@@ -19,7 +19,7 @@ class Main(tk.Tk):
         self.status_label.pack(side="left", padx=5)
 
         # By default
-        self.pacemaker_connected = True
+        self.pacemaker_connected = False
         self.set_connection_status(self.pacemaker_connected)
 
         # Container for all frames
