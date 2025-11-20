@@ -40,7 +40,7 @@ def validate_param(param_name, value):
     return True, ""
 
 class PacemakerCommunicator:
-    def __init__(self, port='COM5', baudrate=115200):
+    def __init__(self, port='COM5', baudrate=115200):  # Changed to COM5
         self.port = port
         self.baudrate = baudrate
         self.ser = None
@@ -68,6 +68,22 @@ class PacemakerCommunicator:
             self.ser.close()
         self.connected = False
         print("Disconnected")
+    
+    def check_connection(self) -> bool:
+        """Check if the pacemaker is still connected"""
+        if not self.ser or not self.ser.is_open:
+            self.connected = False
+            return False
+        
+        try:
+            # Try to read the port status - if it fails, we're disconnected
+            self.ser.in_waiting
+            self.connected = True
+            return True
+        except (serial.SerialException, OSError):
+            # Port is disconnected
+            self.connected = False
+            return False
     
     def send_parameters(self, mode: str, params: dict) -> Tuple[bool, str]:
         """Send parameters to pacemaker"""
@@ -129,41 +145,50 @@ class PacemakerCommunicator:
     def _calculate_checksum(self, data: bytes) -> int:
         """Calculate simple checksum for error detection"""
         return sum(data) & 0xFF
-    
+        
     def read_egram(self, duration: float = 5.0):
-        """Read egram data from pacemaker"""
+        """Read egram data from pacemaker - UPDATED for continuous 4-byte format"""
         if not self.connected:
             print("Not connected to pacemaker")
             return None, None
         
         try:
-            # Send egram request command
-            request = struct.pack("=B33x", 0x55)
-            self.ser.write(request)
-            
             print(f"Reading egram data for {duration} seconds...")
             atrial_data = []
             ventricular_data = []
             start_time = time.time()
+            samples_collected = 0
+            
+            # Clear any existing data in the buffer first
+            if self.ser.in_waiting > 0:
+                self.ser.read(self.ser.in_waiting)
             
             while time.time() - start_time < duration:
-                if self.ser.in_waiting >= 81:  # 80 bytes data + 1 control byte
-                    data = self.ser.read(81)
-                    control_byte = data[0]
+                if self.ser.in_waiting >= 4:
+                    data = self.ser.read(4)
                     
-                    if control_byte == 0:  # ECG data
-                        # Unpack egram data (20 floats)
-                        egram_data = struct.unpack("=20f", data[1:])
-                        atrial_data.extend(egram_data[:10])
-                        ventricular_data.extend(egram_data[10:])
-                    
-                time.sleep(0.1)
+                    if len(data) == 4:
+                        # Interpret as 16-bit unsigned integers
+                        vent = int.from_bytes(data[0:2], 'little', signed=False)
+                        atr = int.from_bytes(data[2:4], 'little', signed=False)
+                        
+                        ventricular_data.append(vent)
+                        atrial_data.append(atr)
+                        samples_collected += 1
+                
+                time.sleep(0.001)  # 1ms delay for high sampling rate
             
+            print(f"Collected {samples_collected} egram samples")
+            
+            if samples_collected == 0:
+                print("No egram data received - is the heart simulator running?")
+                return None, None
+                
             return atrial_data, ventricular_data
                 
         except Exception as e:
             print(f"Egram read error: {e}")
             return None, None
-
+    
 # Create the global communicator instance
 pacemaker_comm = PacemakerCommunicator()

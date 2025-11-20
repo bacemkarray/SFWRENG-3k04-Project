@@ -87,8 +87,10 @@ class Main(tk.Tk):
                     # If not connected, attempt to reconnect automatically
                     if self.pacemaker_connected:
                         # Try to connect
-                        if not parameters.pacemaker_comm.connect():
+                        print(parameters.pacemaker_comm.check_connection())
+                        if not parameters.pacemaker_comm.check_connection():
                             self.after(0, lambda: self.set_connection_status(False))
+                            self.after(0, lambda: parameters.pacemaker_comm.disconnect())
                             print("Auto Disconnected")
                         
                 except Exception as e:
