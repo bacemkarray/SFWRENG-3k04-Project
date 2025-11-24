@@ -37,8 +37,8 @@ class Main(tk.Tk):
         # Frames dictionary
         self.frames = {}
 
-        # Append each page into the frames dict
-        for F in (WelcomePage, ModeSelectPage, ParameterPage, RegisterUserPage, EgramPage):
+        # Append each page into the frames dict (removed EgramPage)
+        for F in (WelcomePage, ModeSelectPage, ParameterPage, RegisterUserPage):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -87,7 +87,6 @@ class Main(tk.Tk):
                     # If not connected, attempt to reconnect automatically
                     if self.pacemaker_connected:
                         # Try to connect
-                        print(parameters.pacemaker_comm.check_connection())
                         if not parameters.pacemaker_comm.check_connection():
                             self.after(0, lambda: self.set_connection_status(False))
                             self.after(0, lambda: parameters.pacemaker_comm.disconnect())
@@ -104,7 +103,6 @@ class Main(tk.Tk):
         # Start the monitoring thread
         monitor_thread = Thread(target=check, daemon=True)
         monitor_thread.start()
-# ... rest of your classes remain the same (WelcomePage, RegisterUserPage, ModeSelectPage, ParameterPage, EgramPage)
 
 class WelcomePage(tk.Frame):
     def __init__(self, parent, controller):
@@ -130,9 +128,6 @@ class WelcomePage(tk.Frame):
 
         register_btn = ttk.Button(self, text="Register New User", command=self.go_register)
         register_btn.pack(pady=10)
-        
-        egram_btn = ttk.Button(self, text="View Egram", command=self.go_egram)
-        egram_btn.pack(pady=10)
 
         quit_btn = ttk.Button(self, text="Quit", command=controller.destroy)
         quit_btn.pack(pady=10)
@@ -149,10 +144,6 @@ class WelcomePage(tk.Frame):
 
     def go_register(self):
         self.controller.show_frame(RegisterUserPage)
-        
-    def go_egram(self):
-        self.controller.show_frame(EgramPage)
-
 
 class RegisterUserPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -198,7 +189,6 @@ class RegisterUserPage(tk.Frame):
     def go_back(self):
         self.controller.show_frame(WelcomePage)
 
-
 class ModeSelectPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -211,16 +201,13 @@ class ModeSelectPage(tk.Frame):
         ttk.Button(self, text="VOO", command=lambda: self.select_mode("VOO")).pack(pady=5)
         ttk.Button(self, text="VVI", command=lambda: self.select_mode("VVI")).pack(pady=5)
         
-        ttk.Button(self, text="View Egram", command=self.go_egram).pack(pady=10)
         ttk.Button(self, text="Back", command=lambda: controller.show_frame(WelcomePage)).pack(pady=20)
 
     def select_mode(self, mode):
         self.controller.current_mode = mode
+        # Set the mode in the parameters manager
+        parameters.pacemaker_params.set_mode(mode)
         self.controller.show_frame(ParameterPage)
-        
-    def go_egram(self):
-        self.controller.show_frame(EgramPage)
-
 
 class ParameterPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -237,12 +224,39 @@ class ParameterPage(tk.Frame):
         self.back_button = ttk.Button(self, text="Back to Modes", command=self.go_back)
         self.back_button.pack(pady=10)
         
+        # Message labels
         self.upload_msg = ttk.Label(self, text="", foreground="red")
         self.upload_msg.pack(pady=5)
 
-        self.upload_button = ttk.Button(self, text="Upload to Pacemaker",
+        # Button frame for Upload and Show Parameters
+        button_frame = tk.Frame(self)
+        button_frame.pack(pady=10)
+        
+        self.upload_button = ttk.Button(button_frame, text="Upload to Pacemaker",
                                 command=self.upload_to_pacemaker)
-        self.upload_button.pack(pady=5)
+        self.upload_button.pack(side="left", padx=5)
+
+        self.show_params_button = ttk.Button(button_frame, text="Show Current Parameters",
+                                    command=self.show_current_parameters)
+        self.show_params_button.pack(side="left", padx=5)
+
+        # Frame to display current parameters from pacemaker
+        self.current_params_frame = tk.Frame(self)
+        self.current_params_frame.pack(pady=10, fill="x", padx=20)
+        
+        # Label for current parameters section
+        self.current_params_label = ttk.Label(self.current_params_frame, text="Current Pacemaker Parameters:", 
+                                             font=("Arial", 12, "bold"))
+        self.current_params_label.pack(anchor="w", pady=(0, 5))
+        
+        # Text widget to display parameters (read-only)
+        self.params_text = tk.Text(self.current_params_frame, height=8, width=70, state="disabled")
+        self.params_text.pack(fill="x")
+        
+        # Scrollbar for parameters text
+        params_scrollbar = ttk.Scrollbar(self.current_params_frame, orient="vertical", command=self.params_text.yview)
+        params_scrollbar.pack(side="right", fill="y")
+        self.params_text.configure(yscrollcommand=params_scrollbar.set)
 
     def show_parameters(self):
         # Clear the frame
@@ -285,90 +299,179 @@ class ParameterPage(tk.Frame):
             self.upload_msg.config(text="Cannot upload - Pacemaker not connected", foreground="red")
             return
         
-        # Collect parameters
-        param_dict = {}
+        # Collect parameters and update the parameter manager
         for param_name, entry in self.widgets.items():
             value = entry.get().strip()
             if not value:
                 self.upload_msg.config(text=f"Please enter value for {param_name}", foreground="red")
                 return
-                
+            
+            # Validate the parameter
             valid, msg = parameters.validate_param(param_name, value)
             if not valid:
                 self.upload_msg.config(text=msg, foreground="red")
                 return
+            
+            # Convert to appropriate format and set in parameter manager
+            try:
+                if param_name in ["Lower Rate Limit", "Upper Rate Limit", "ARP", "VRP"]:
+                    # These are integer values
+                    int_value = int(float(value))
+                    if param_name == "Lower Rate Limit":
+                        parameters.pacemaker_params.set_parameter('LRL', int_value)
+                    elif param_name == "Upper Rate Limit":
+                        parameters.pacemaker_params.set_parameter('URL', int_value)
+                    elif param_name == "ARP":
+                        parameters.pacemaker_params.set_parameter('ARP', int_value // 10)  # Convert to raw value
+                    elif param_name == "VRP":
+                        parameters.pacemaker_params.set_parameter('VRP', int_value // 10)  # Convert to raw value
                 
-            param_dict[param_name] = value
+                elif "Amplitude" in param_name:
+                    # Convert voltage to raw value (multiply by 10)
+                    raw_value = int(float(value) * 10)
+                    if "Atrial" in param_name:
+                        parameters.pacemaker_params.set_parameter('ATR_AMP', raw_value)
+                    else:
+                        parameters.pacemaker_params.set_parameter('VENT_AMP', raw_value)
+                
+                elif "Pulse Width" in param_name:
+                    # Convert ms to raw value (multiply by 10)
+                    raw_value = int(float(value) * 10)
+                    if "Atrial" in param_name:
+                        parameters.pacemaker_params.set_parameter('ATR_PULSE_WIDTH', raw_value)
+                    else:
+                        parameters.pacemaker_params.set_parameter('VENT_PULSE_WIDTH', raw_value)
+                        
+            except ValueError:
+                self.upload_msg.config(text=f"Invalid value for {param_name}", foreground="red")
+                return
         
-        # Send to pacemaker
-        success, message = parameters.pacemaker_comm.send_parameters(
-            self.controller.current_mode, 
-            param_dict
-        )
+        # Get the parameter bytes and send to pacemaker
+        try:
+            param_bytes = parameters.pacemaker_params.get_parameter_bytes()
+            
+            # Send raw parameters to pacemaker
+            success = parameters.pacemaker_comm.send_raw_parameters(param_bytes)
+            
+            if success:
+                self.upload_msg.config(text="✓ Parameters successfully uploaded to pacemaker", foreground="green")
+                # Print the parameters for verification
+                parameters.pacemaker_params.print_parameters()
+            else:
+                self.upload_msg.config(text="✗ Failed to upload parameters", foreground="red")
+                
+        except Exception as e:
+            self.upload_msg.config(text=f"✗ Error: {str(e)}", foreground="red")
+
+    def show_current_parameters(self):
+        """Fetch and display current parameters from the pacemaker"""
+        if not self.controller.pacemaker_connected:
+            self.upload_msg.config(text="Cannot fetch parameters - Pacemaker not connected", foreground="red")
+            return
         
-        if success:
-            self.upload_msg.config(text=f"✓ {message}", foreground="green")
-        else:
-            self.upload_msg.config(text=f"✗ {message}", foreground="red")
-    
+        self.upload_msg.config(text="Requesting parameters from pacemaker...", foreground="blue")
+        
+        # Use a thread to avoid blocking the GUI
+        from threading import Thread
+        Thread(target=self._fetch_parameters_thread, daemon=True).start()
+
+    def _fetch_parameters_thread(self):
+        """Thread function to fetch parameters from pacemaker"""
+        try:
+            # Set to echo mode and send request
+            parameters.pacemaker_params.set_echo_mode()
+            echo_bytes = parameters.pacemaker_params.get_parameter_bytes()
+            
+            # Send echo request to pacemaker
+            success = parameters.pacemaker_comm.send_raw_parameters(echo_bytes)
+            
+            if success:
+                # Wait for response
+                time.sleep(1)
+                
+                # Read response from pacemaker
+                if parameters.pacemaker_comm.ser.in_waiting >= 18:
+                    response = parameters.pacemaker_comm.ser.read(18)
+                    
+                    # Update the parameters from the response
+                    self._update_parameters_from_response(response)
+                    
+                    # Switch back to parameter mode for future uploads
+                    parameters.pacemaker_params.set_parameter_mode()
+                    
+                    # Update GUI in main thread
+                    self.after(0, lambda: self.upload_msg.config(
+                        text="✓ Successfully fetched parameters from pacemaker", 
+                        foreground="green"
+                    ))
+                else:
+                    self.after(0, lambda: self.upload_msg.config(
+                        text="✗ No response from pacemaker", 
+                        foreground="red"
+                    ))
+            else:
+                self.after(0, lambda: self.upload_msg.config(
+                    text="✗ Failed to send echo request", 
+                    foreground="red"
+                ))
+                
+        except Exception as e:
+            self.after(0, lambda: self.upload_msg.config(
+                text=f"✗ Error fetching parameters: {str(e)}", 
+                foreground="red"
+            ))
+
+    def _update_parameters_from_response(self, response_bytes):
+        """Update parameter manager and display from pacemaker response"""
+        if len(response_bytes) != 18:
+            print(f"Invalid response length: {len(response_bytes)} bytes")
+            return
+        
+        try:
+            # Update the parameter manager with the received bytes
+            parameters.pacemaker_params.set_parameters_from_bytes(response_bytes)
+            
+            # Get user-friendly parameter summary
+            summary = parameters.pacemaker_params.get_parameter_summary()
+            
+            # Format the display text
+            display_text = f"""Mode: {summary['mode']}
+Lower Rate Limit: {summary['lrl']} ppm
+Upper Rate Limit: {summary['url']} ppm
+Maximum Sensor Rate: {summary['msr']} ppm
+
+Atrial Amplitude: {summary['atrial_amp']:.1f} V
+Ventricular Amplitude: {summary['ventricular_amp']:.1f} V
+
+Atrial Pulse Width: {summary['atrial_pw']:.1f} ms
+Ventricular Pulse Width: {summary['ventricular_pw']:.1f} ms
+
+Atrial Sensitivity: {summary['atrial_sens']:.1f} mV
+Ventricular Sensitivity: {summary['ventricular_sens']:.1f} mV
+
+ARP: {summary['arp']} ms
+VRP: {summary['vrp']} ms
+
+Activity Threshold: {summary['activity_threshold']}
+Reaction Time: {summary['reaction_time']} s
+Response Factor: {summary['response_factor']}
+Recovery Time: {summary['recovery_time']} min"""
+            
+            # Update the display in the main thread
+            self.after(0, lambda: self._update_parameters_display(display_text))
+            
+        except Exception as e:
+            print(f"Error updating parameters from response: {e}")
+
+    def _update_parameters_display(self, display_text):
+        """Update the parameters text display"""
+        self.params_text.config(state="normal")
+        self.params_text.delete(1.0, tk.END)
+        self.params_text.insert(1.0, display_text)
+        self.params_text.config(state="disabled")
+
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
-
-
-class EgramPage(tk.Frame):
-    def __init__(self, parent, controller):
-        super().__init__(parent)
-        self.controller = controller
-        
-        ttk.Label(self, text="Egram Display", font=("Arial", 14)).pack(pady=20)
-        
-        self.egram_msg = ttk.Label(self, text="", foreground="red")
-        self.egram_msg.pack(pady=5)
-        
-        ttk.Button(self, text="Start Egram", command=self.start_egram).pack(pady=5)
-        ttk.Button(self, text="Back to Welcome", command=self.go_back).pack(pady=10)
-        
-        # Simple text display for egram data
-        self.egram_text = tk.Text(self, height=15, width=80)
-        self.egram_text.pack(pady=10, padx=10)
-        
-    def start_egram(self):
-        if not self.controller.pacemaker_connected:
-            self.egram_msg.config(text="Cannot read egram - Pacemaker not connected", foreground="red")
-            return
-            
-        self.egram_msg.config(text="Reading egram data...", foreground="green")
-        self.egram_text.delete(1.0, tk.END)
-        self.egram_text.insert(tk.END, "Reading egram data from pacemaker...\n\n")
-        
-        # Test the egram reading directly
-        def read_egram_thread():
-            try:
-                # Test if we can read basic data first
-                if parameters.pacemaker_comm.ser.in_waiting >= 4:
-                    test_data = parameters.pacemaker_comm.ser.read(4)
-                    self.egram_text.insert(tk.END, f"Test read: {len(test_data)} bytes\n")
-                    
-                    # Now read for real
-                    atrial, ventricular = parameters.pacemaker_comm.read_egram(5)
-                    if atrial and ventricular:
-                        self.egram_text.insert(tk.END, f"✓ Success! {len(atrial)} samples\n")
-                        self.egram_text.insert(tk.END, f"Ventricular range: {min(ventricular)}-{max(ventricular)}\n")
-                        self.egram_text.insert(tk.END, f"Atrial range: {min(atrial)}-{max(atrial)}\n")
-                    else:
-                        self.egram_text.insert(tk.END, "✗ No data received\n")
-                else:
-                    self.egram_text.insert(tk.END, "No data available to read\n")
-                    
-            except Exception as e:
-                self.egram_text.insert(tk.END, f"Error: {e}\n")
-        
-        thread = Thread(target=read_egram_thread, daemon=True)
-        thread.start()
-    
-    def go_back(self):
-        self.controller.show_frame(WelcomePage)
-
 
 if __name__ == "__main__":
     app = Main()

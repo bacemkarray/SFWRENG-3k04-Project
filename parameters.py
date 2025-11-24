@@ -1,3 +1,5 @@
+# parameters.py
+
 import serial
 import struct
 import time
@@ -40,7 +42,7 @@ def validate_param(param_name, value):
     return True, ""
 
 class PacemakerCommunicator:
-    def __init__(self, port='COM5', baudrate=115200):  # Changed to COM5
+    def __init__(self, port='COM5', baudrate=115200):
         self.port = port
         self.baudrate = baudrate
         self.ser = None
@@ -147,7 +149,7 @@ class PacemakerCommunicator:
         return sum(data) & 0xFF
         
     def read_egram(self, duration: float = 5.0):
-        """Read egram data from pacemaker - UPDATED for continuous 4-byte format"""
+        """Read egram data from pacemaker"""
         if not self.connected:
             print("Not connected to pacemaker")
             return None, None
@@ -189,6 +191,293 @@ class PacemakerCommunicator:
         except Exception as e:
             print(f"Egram read error: {e}")
             return None, None
-    
-# Create the global communicator instance
+
+    def send_raw_parameters(self, param_bytes: bytes) -> bool:
+        """Send raw parameter bytes to pacemaker"""
+        if not self.connected:
+            return False
+        
+        try:
+            self.ser.write(param_bytes)
+            print(f"Sent {len(param_bytes)} bytes to pacemaker")
+            return True
+        except Exception as e:
+            print(f"Failed to send parameters: {e}")
+            return False
+
+class PacemakerParameters:
+    def __init__(self):
+        # Initialize with default values according to the protocol
+        self.parameters = {
+            # Byte 1: Always 0x16 (SYNC)
+            'SYNC': 0x16,
+            
+            # Byte 2: Function Code (0x55 for set parameters, 0x22 for echo)
+            'FnCode': 0x55,
+            
+            # Byte 3: Mode (1-8)
+            'Mode': 1,  # Default to AOO
+            
+            # Byte 4: Lower Rate Limit (30-175 ppm)
+            'LRL': 60,
+            
+            # Byte 5: Upper Rate Limit (50-175 ppm)
+            'URL': 120,
+            
+            # Byte 6: Maximum Sensor Rate (50-175 ppm)
+            'MSR': 120,
+            
+            # Byte 7: Atrial Amplitude (0-50 = 0-5.0V when divided by 10)
+            'ATR_AMP': 25,  # 2.5V
+            
+            # Byte 8: Ventricular Amplitude (0-50 = 0-5.0V when divided by 10)
+            'VENT_AMP': 25,  # 2.5V
+            
+            # Byte 9: Atrial Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
+            'ATR_PULSE_WIDTH': 10,  # 1.0ms
+            
+            # Byte 10: Ventricular Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
+            'VENT_PULSE_WIDTH': 10,  # 1.0ms
+            
+            # Byte 11: Atrial Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
+            'ATR_SENS': 50,  # 5.0mV
+            
+            # Byte 12: Ventricular Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
+            'VENT_SENS': 50,  # 5.0mV
+            
+            # Byte 13: VRP (15-50 = 150-500ms when multiplied by 10)
+            'VRP': 25,  # 250ms
+            
+            # Byte 14: ARP (15-50 = 150-500ms when multiplied by 10)
+            'ARP': 25,  # 250ms
+            
+            # Byte 15: Activity Threshold (0-255, unclear range)
+            'ACTIVITY_THRESHOLD': 10,
+            
+            # Byte 16: Reaction Time (10-50 seconds)
+            'REACTION_TIME': 30,
+            
+            # Byte 17: Response Factor (1-16)
+            'RESPONSE_FACTOR': 8,
+            
+            # Byte 18: Recovery Time (2-16 minutes)
+            'RECOVERY_TIME': 5
+        }
+        
+        # Mode mapping for user-friendly names
+        self.mode_mapping = {
+            'AOO': 1, 'VOO': 2, 'AAI': 3, 'VVI': 4,
+            'AOOR': 5, 'VOOR': 6, 'AAIR': 7, 'VVIR': 8
+        }
+        
+        # Reverse mode mapping for display
+        self.mode_names = {v: k for k, v in self.mode_mapping.items()}
+
+    def set_parameter(self, param_name: str, value: int) -> bool:
+        """
+        Set a parameter with validation
+        
+        Args:
+            param_name: Name of the parameter to set
+            value: Value to set
+            
+        Returns:
+            bool: True if successful, False if validation failed
+        """
+        if param_name not in self.parameters:
+            print(f"Error: Unknown parameter '{param_name}'")
+            return False
+        
+        # Parameter validation rules
+        validation_rules = {
+            'SYNC': (0x16, 0x16),  # Must always be 0x16
+            'FnCode': (0x22, 0x55),  # Either 0x22 or 0x55
+            'Mode': (1, 8),
+            'LRL': (30, 175),
+            'URL': (50, 175),
+            'MSR': (50, 175),
+            'ATR_AMP': (0, 50),
+            'VENT_AMP': (0, 50),
+            'ATR_PULSE_WIDTH': (1, 19),
+            'VENT_PULSE_WIDTH': (1, 19),
+            'ATR_SENS': (10, 100),
+            'VENT_SENS': (10, 100),
+            'VRP': (15, 50),
+            'ARP': (15, 50),
+            'ACTIVITY_THRESHOLD': (0, 255),
+            'REACTION_TIME': (10, 50),
+            'RESPONSE_FACTOR': (1, 16),
+            'RECOVERY_TIME': (2, 16)
+        }
+        
+        min_val, max_val = validation_rules.get(param_name, (0, 255))
+        
+        if not (min_val <= value <= max_val):
+            print(f"Error: {param_name} must be between {min_val} and {max_val}")
+            return False
+        
+        self.parameters[param_name] = value
+        print(f"Set {param_name} = {value}")
+        return True
+
+    def set_mode(self, mode_name: str) -> bool:
+        """
+        Set pacing mode by name
+        
+        Args:
+            mode_name: Mode name (AOO, VOO, AAI, VVI, AOOR, VOOR, AAIR, VVIR)
+            
+        Returns:
+            bool: True if successful, False if invalid mode
+        """
+        mode_code = self.mode_mapping.get(mode_name.upper())
+        if mode_code is None:
+            print(f"Error: Invalid mode '{mode_name}'. Must be one of: {list(self.mode_mapping.keys())}")
+            return False
+        
+        self.parameters['Mode'] = mode_code
+        print(f"Set mode to {mode_name} (code: {mode_code})")
+        return True
+
+    def get_parameter(self, param_name: str) -> int:
+        """
+        Get a parameter value
+        
+        Args:
+            param_name: Name of the parameter
+            
+        Returns:
+            int: Parameter value, or None if parameter doesn't exist
+        """
+        return self.parameters.get(param_name)
+
+    def get_mode_name(self) -> str:
+        """
+        Get current mode as user-friendly name
+        
+        Returns:
+            str: Mode name
+        """
+        mode_code = self.parameters['Mode']
+        return self.mode_names.get(mode_code, f"Unknown ({mode_code})")
+
+    def get_parameter_bytes(self) -> bytes:
+        """
+        Convert all parameters to 18-byte packet for serial transmission
+        
+        Returns:
+            bytes: 18-byte packet ready to send to pacemaker
+        """
+        byte_array = bytearray(18)
+        
+        # Pack all parameters in order
+        byte_array[0] = self.parameters['SYNC']
+        byte_array[1] = self.parameters['FnCode']
+        byte_array[2] = self.parameters['Mode']
+        byte_array[3] = self.parameters['LRL']
+        byte_array[4] = self.parameters['URL']
+        byte_array[5] = self.parameters['MSR']
+        byte_array[6] = self.parameters['ATR_AMP']
+        byte_array[7] = self.parameters['VENT_AMP']
+        byte_array[8] = self.parameters['ATR_PULSE_WIDTH']
+        byte_array[9] = self.parameters['VENT_PULSE_WIDTH']
+        byte_array[10] = self.parameters['ATR_SENS']
+        byte_array[11] = self.parameters['VENT_SENS']
+        byte_array[12] = self.parameters['VRP']
+        byte_array[13] = self.parameters['ARP']
+        byte_array[14] = self.parameters['ACTIVITY_THRESHOLD']
+        byte_array[15] = self.parameters['REACTION_TIME']
+        byte_array[16] = self.parameters['RESPONSE_FACTOR']
+        byte_array[17] = self.parameters['RECOVERY_TIME']
+        
+        return bytes(byte_array)
+
+    def set_echo_mode(self):
+        """Set function code to echo mode (request pacemaker to echo current values)"""
+        self.parameters['FnCode'] = 0x22
+        print("Set to echo mode (0x22)")
+
+    def set_parameter_mode(self):
+        """Set function code to parameter mode (send parameters to pacemaker)"""
+        self.parameters['FnCode'] = 0x55
+        print("Set to parameter mode (0x55)")
+
+    def print_parameters(self):
+        """Print all current parameters in a formatted way"""
+        print("\n" + "="*50)
+        print("CURRENT PACEMAKER PARAMETERS")
+        print("="*50)
+        
+        print(f"Mode: {self.get_mode_name()} (Code: {self.parameters['Mode']})")
+        print(f"Function: {'Echo (0x22)' if self.parameters['FnCode'] == 0x22 else 'Set Parameters (0x55)'}")
+        print()
+        
+        # Rate parameters
+        print("RATES:")
+        print(f"  Lower Rate Limit: {self.parameters['LRL']} ppm")
+        print(f"  Upper Rate Limit: {self.parameters['URL']} ppm")
+        print(f"  Maximum Sensor Rate: {self.parameters['MSR']} ppm")
+        print()
+        
+        # Amplitude parameters (with converted values)
+        print("AMPLITUDES:")
+        print(f"  Atrial: {self.parameters['ATR_AMP']/10:.1f}V (raw: {self.parameters['ATR_AMP']})")
+        print(f"  Ventricular: {self.parameters['VENT_AMP']/10:.1f}V (raw: {self.parameters['VENT_AMP']})")
+        print()
+        
+        # Pulse Width parameters (with converted values)
+        print("PULSE WIDTHS:")
+        print(f"  Atrial: {self.parameters['ATR_PULSE_WIDTH']/10:.1f}ms (raw: {self.parameters['ATR_PULSE_WIDTH']})")
+        print(f"  Ventricular: {self.parameters['VENT_PULSE_WIDTH']/10:.1f}ms (raw: {self.parameters['VENT_PULSE_WIDTH']})")
+        print()
+        
+        # Sensitivity parameters (with converted values)
+        print("SENSITIVITIES:")
+        print(f"  Atrial: {self.parameters['ATR_SENS']/10:.1f}mV (raw: {self.parameters['ATR_SENS']})")
+        print(f"  Ventricular: {self.parameters['VENT_SENS']/10:.1f}mV (raw: {self.parameters['VENT_SENS']})")
+        print()
+        
+        # Refractory periods (with converted values)
+        print("REFRACTORY PERIODS:")
+        print(f"  ARP: {self.parameters['ARP']*10}ms (raw: {self.parameters['ARP']})")
+        print(f"  VRP: {self.parameters['VRP']*10}ms (raw: {self.parameters['VRP']})")
+        print()
+        
+        # Sensor parameters
+        print("SENSOR PARAMETERS:")
+        print(f"  Activity Threshold: {self.parameters['ACTIVITY_THRESHOLD']}")
+        print(f"  Reaction Time: {self.parameters['REACTION_TIME']}s")
+        print(f"  Response Factor: {self.parameters['RESPONSE_FACTOR']}")
+        print(f"  Recovery Time: {self.parameters['RECOVERY_TIME']}min")
+        
+        print("="*50)
+
+    def get_parameter_summary(self) -> dict:
+        """
+        Get a summary of parameters with converted values for display
+        
+        Returns:
+            dict: Parameter summary with user-friendly values
+        """
+        return {
+            'mode': self.get_mode_name(),
+            'lrl': self.parameters['LRL'],
+            'url': self.parameters['URL'],
+            'msr': self.parameters['MSR'],
+            'atrial_amp': self.parameters['ATR_AMP'] / 10,
+            'ventricular_amp': self.parameters['VENT_AMP'] / 10,
+            'atrial_pw': self.parameters['ATR_PULSE_WIDTH'] / 10,
+            'ventricular_pw': self.parameters['VENT_PULSE_WIDTH'] / 10,
+            'atrial_sens': self.parameters['ATR_SENS'] / 10,
+            'ventricular_sens': self.parameters['VENT_SENS'] / 10,
+            'arp': self.parameters['ARP'] * 10,
+            'vrp': self.parameters['VRP'] * 10,
+            'activity_threshold': self.parameters['ACTIVITY_THRESHOLD'],
+            'reaction_time': self.parameters['REACTION_TIME'],
+            'response_factor': self.parameters['RESPONSE_FACTOR'],
+            'recovery_time': self.parameters['RECOVERY_TIME']
+        }
+
+# Create global instances
 pacemaker_comm = PacemakerCommunicator()
+pacemaker_params = PacemakerParameters()
