@@ -8,7 +8,7 @@ PARAMETER_RULES = {
     "Upper Rate Limit": (50, 175),
     "Maximum Sensor Rate": (50, 175),
     "Fixed AV Delay": (70, 300),
-    "Atrial Amplitude": (0.5, 7.0),
+    "Atrial Amplitude": (0.5, 5.0),
     "Atrial Pulse Width": (0.05, 1.9),
     "Atrial Sensitivity": (0.25, 10.0),
     "Ventricular Amplitude": (0.5, 7.0),
