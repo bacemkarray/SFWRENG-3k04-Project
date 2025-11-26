@@ -6,15 +6,15 @@ import time
 from typing import Tuple
 
 PARAMETER_RULES = {
-    "Lower Rate Limit": (50, 175),
+    "Lower Rate Limit": (30, 175),
     "Upper Rate Limit": (50, 175),
     "Maximum Sensor Rate": (50, 175),
     "Fixed AV Delay": (70, 300),
-    "Atrial Amplitude": (0.5, 7.0),
-    "Atrial Pulse Width": (0.05, 1.9),
+    "Atrial Amplitude": (0, 5),
+    "Atrial Pulse Width": (0.1, 1.9),
     "Atrial Sensitivity": (0.25, 10.0),
-    "Ventricular Amplitude": (0.5, 7.0),
-    "Ventricular Pulse Width": (0.05, 1.9),
+    "Ventricular Amplitude": (0, 5),
+    "Ventricular Pulse Width": (0.1, 1.9),
     "Ventricular Sensitivity": (0.25, 10.0),
     "ARP": (150, 500),
     "VRP": (150, 500)
@@ -219,25 +219,25 @@ class PacemakerParameters:
             'Mode': 1,  # Default to AOO
             
             # Byte 4: Lower Rate Limit (30-175 ppm)
-            'LRL': 60,
+            'Lower Rate Limit': 60,
             
             # Byte 5: Upper Rate Limit (50-175 ppm)
-            'URL': 120,
+            'Upper Rate Limit': 120,
             
             # Byte 6: Maximum Sensor Rate (50-175 ppm)
             'MSR': 120,
             
             # Byte 7: Atrial Amplitude (0-50 = 0-5.0V when divided by 10)
-            'ATR_AMP': 25,  # 2.5V
+            'Atrial Amplitude': 25,  # 2.5V
             
             # Byte 8: Ventricular Amplitude (0-50 = 0-5.0V when divided by 10)
-            'VENT_AMP': 25,  # 2.5V
+            'Ventricular Amplitude': 25,  # 2.5V
             
             # Byte 9: Atrial Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
-            'ATR_PULSE_WIDTH': 10,  # 1.0ms
+            'Atrial Pulse Width': 10,  # 1.0ms
             
             # Byte 10: Ventricular Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
-            'VENT_PULSE_WIDTH': 10,  # 1.0ms
+            'Ventricular Pulse Width': 10,  # 1.0ms
             
             # Byte 11: Atrial Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
             'ATR_SENS': 50,  # 5.0mV
@@ -293,13 +293,13 @@ class PacemakerParameters:
             'SYNC': (0x16, 0x16),  # Must always be 0x16
             'FnCode': (0x22, 0x55),  # Either 0x22 or 0x55
             'Mode': (1, 8),
-            'LRL': (30, 175),
-            'URL': (50, 175),
+            'Lower Rate Limit': (30, 175),
+            'Upper Rate Limit': (50, 175),
             'MSR': (50, 175),
-            'ATR_AMP': (0, 50),
-            'VENT_AMP': (0, 50),
-            'ATR_PULSE_WIDTH': (1, 19),
-            'VENT_PULSE_WIDTH': (1, 19),
+            'Atrial Amplitude': (0, 50),
+            'Ventricular Amplitude': (0, 50),
+            'Atrial Pulse Width': (1, 19),
+            'Ventricular Pulse Width': (1, 19),
             'ATR_SENS': (10, 100),
             'VENT_SENS': (10, 100),
             'VRP': (15, 50),
@@ -319,6 +319,51 @@ class PacemakerParameters:
         self.parameters[param_name] = value
         print(f"Set {param_name} = {value}")
         return True
+
+    def set_parameters_from_bytes(self, data_bytes: bytes) -> bool:
+        """
+        Set all parameters from 18 bytes of data
+        
+        Args:
+            data_bytes: 18 bytes containing all parameter values
+            
+        Returns:
+            bool: True if successful, False if invalid length
+        """
+        if len(data_bytes) != 18:
+            print(f"Error: Expected 18 bytes, got {len(data_bytes)}")
+            return False
+        
+        try:
+            # Based on your received data, the pacemaker returns parameters in this order:
+            # [Mode, LRL, URL, MSR, ATR_AMP, VENT_AMP, ATR_PW, VENT_PW, ATR_SENS, VENT_SENS, VRP, ARP, 
+            #  ACTIVITY_THRESHOLD, REACTION_TIME, RESPONSE_FACTOR, RECOVERY_TIME, ?, ?]
+            
+            # Map bytes to parameters based on the actual response order
+            self.parameters['Mode'] = data_bytes[0]
+            self.parameters['Lower Rate Limit'] = data_bytes[1]
+            self.parameters['Upper Rate Limit'] = data_bytes[2]
+            self.parameters['MSR'] = data_bytes[3]
+            self.parameters['Atrial Amplitude'] = data_bytes[4]
+            self.parameters['Ventricular Amplitude'] = data_bytes[5]
+            self.parameters['Atrial Pulse Width'] = data_bytes[6]
+            self.parameters['Ventricular Pulse Width'] = data_bytes[7]
+            self.parameters['ATR_SENS'] = data_bytes[8]
+            self.parameters['VENT_SENS'] = data_bytes[9]
+            self.parameters['VRP'] = data_bytes[10]
+            self.parameters['ARP'] = data_bytes[11]
+            self.parameters['ACTIVITY_THRESHOLD'] = data_bytes[12]
+            self.parameters['REACTION_TIME'] = data_bytes[13]
+            self.parameters['RESPONSE_FACTOR'] = data_bytes[14]
+            self.parameters['RECOVERY_TIME'] = data_bytes[15]
+            # Bytes 16 and 17 seem to be unknown/extra bytes in the response
+            
+            print("All parameters updated successfully from byte data")
+            return True
+            
+        except Exception as e:
+            print(f"Error parsing byte data: {e}")
+            return False
 
     def set_mode(self, mode_name: str) -> bool:
         """
@@ -364,23 +409,21 @@ class PacemakerParameters:
     def get_parameter_bytes(self) -> bytes:
         """
         Convert all parameters to 18-byte packet for serial transmission
-        
-        Returns:
-            bytes: 18-byte packet ready to send to pacemaker
+        Match the format that the pacemaker expects
         """
         byte_array = bytearray(18)
         
-        # Pack all parameters in order
+        # Pack parameters in the order the pacemaker expects
         byte_array[0] = self.parameters['SYNC']
         byte_array[1] = self.parameters['FnCode']
         byte_array[2] = self.parameters['Mode']
-        byte_array[3] = self.parameters['LRL']
-        byte_array[4] = self.parameters['URL']
+        byte_array[3] = self.parameters['Lower Rate Limit']
+        byte_array[4] = self.parameters['Upper Rate Limit']
         byte_array[5] = self.parameters['MSR']
-        byte_array[6] = self.parameters['ATR_AMP']
-        byte_array[7] = self.parameters['VENT_AMP']
-        byte_array[8] = self.parameters['ATR_PULSE_WIDTH']
-        byte_array[9] = self.parameters['VENT_PULSE_WIDTH']
+        byte_array[6] = self.parameters['Atrial Amplitude']
+        byte_array[7] = self.parameters['Ventricular Amplitude']
+        byte_array[8] = self.parameters['Atrial Pulse Width']
+        byte_array[9] = self.parameters['Ventricular Pulse Width']
         byte_array[10] = self.parameters['ATR_SENS']
         byte_array[11] = self.parameters['VENT_SENS']
         byte_array[12] = self.parameters['VRP']
@@ -414,21 +457,21 @@ class PacemakerParameters:
         
         # Rate parameters
         print("RATES:")
-        print(f"  Lower Rate Limit: {self.parameters['LRL']} ppm")
-        print(f"  Upper Rate Limit: {self.parameters['URL']} ppm")
+        print(f"  Lower Rate Limit: {self.parameters['Lower Rate Limit']} ppm")
+        print(f"  Upper Rate Limit: {self.parameters['Upper Rate Limit']} ppm")
         print(f"  Maximum Sensor Rate: {self.parameters['MSR']} ppm")
         print()
         
         # Amplitude parameters (with converted values)
         print("AMPLITUDES:")
-        print(f"  Atrial: {self.parameters['ATR_AMP']/10:.1f}V (raw: {self.parameters['ATR_AMP']})")
-        print(f"  Ventricular: {self.parameters['VENT_AMP']/10:.1f}V (raw: {self.parameters['VENT_AMP']})")
+        print(f"  Atrial: {self.parameters['Atrial Amplitude']/10:.1f}V (raw: {self.parameters['Atrial Amplitude']})")
+        print(f"  Ventricular: {self.parameters['Ventricular Amplitude']/10:.1f}V (raw: {self.parameters['Ventricular Amplitude']})")
         print()
         
         # Pulse Width parameters (with converted values)
         print("PULSE WIDTHS:")
-        print(f"  Atrial: {self.parameters['ATR_PULSE_WIDTH']/10:.1f}ms (raw: {self.parameters['ATR_PULSE_WIDTH']})")
-        print(f"  Ventricular: {self.parameters['VENT_PULSE_WIDTH']/10:.1f}ms (raw: {self.parameters['VENT_PULSE_WIDTH']})")
+        print(f"  Atrial: {self.parameters['Atrial Pulse Width']/10:.1f}ms (raw: {self.parameters['Atrial Pulse Width']})")
+        print(f"  Ventricular: {self.parameters['Ventricular Pulse Width']/10:.1f}ms (raw: {self.parameters['Ventricular Pulse Width']})")
         print()
         
         # Sensitivity parameters (with converted values)
@@ -452,31 +495,21 @@ class PacemakerParameters:
         
         print("="*50)
 
-    def get_parameter_summary(self) -> dict:
+    def get_parameter_summary(self) -> list:
         """
-        Get a summary of parameters with converted values for display
+        Get a list of parameter values in specific order
         
         Returns:
-            dict: Parameter summary with user-friendly values
+            list: Parameter values in byte order
         """
-        return {
-            'mode': self.get_mode_name(),
-            'lrl': self.parameters['LRL'],
-            'url': self.parameters['URL'],
-            'msr': self.parameters['MSR'],
-            'atrial_amp': self.parameters['ATR_AMP'] / 10,
-            'ventricular_amp': self.parameters['VENT_AMP'] / 10,
-            'atrial_pw': self.parameters['ATR_PULSE_WIDTH'] / 10,
-            'ventricular_pw': self.parameters['VENT_PULSE_WIDTH'] / 10,
-            'atrial_sens': self.parameters['ATR_SENS'] / 10,
-            'ventricular_sens': self.parameters['VENT_SENS'] / 10,
-            'arp': self.parameters['ARP'] * 10,
-            'vrp': self.parameters['VRP'] * 10,
-            'activity_threshold': self.parameters['ACTIVITY_THRESHOLD'],
-            'reaction_time': self.parameters['REACTION_TIME'],
-            'response_factor': self.parameters['RESPONSE_FACTOR'],
-            'recovery_time': self.parameters['RECOVERY_TIME']
-        }
+        param_order = [
+            'SYNC', 'FnCode', 'Mode', 'Lower Rate Limit', 'Upper Rate Limit', 'MSR',
+            'Atrial Amplitude', 'Ventricular Amplitude', 'Atrial Pulse Width', 'Ventricular Pulse Width',
+            'ATR_SENS', 'VENT_SENS', 'VRP', 'ARP', 
+            'ACTIVITY_THRESHOLD', 'REACTION_TIME', 'RESPONSE_FACTOR', 'RECOVERY_TIME'
+        ]
+        
+        return [self.parameters[param] for param in param_order]
 
 # Create global instances
 pacemaker_comm = PacemakerCommunicator()

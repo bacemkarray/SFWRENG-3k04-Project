@@ -240,23 +240,62 @@ class ParameterPage(tk.Frame):
                                     command=self.show_current_parameters)
         self.show_params_button.pack(side="left", padx=5)
 
-        # Frame to display current parameters from pacemaker
-        self.current_params_frame = tk.Frame(self)
-        self.current_params_frame.pack(pady=10, fill="x", padx=20)
+        self.measured_params = {
+            # Byte 1: Always 0x16 (SYNC)
+            'SYNC': 0,
+            
+            # Byte 2: Function Code (0x55 for set parameters, 0x22 for echo)
+            'FnCode': 0,
+            
+            # Byte 3: Mode (1-8)
+            'Mode': 0,  # Default to AOO
+            
+            # Byte 4: Lower Rate Limit (30-175 ppm)
+            'Lower Rate Limit': 0,
+            
+            # Byte 5: Upper Rate Limit (50-175 ppm)
+            'Upper Rate Limit': 0,
+            
+            # Byte 6: Maximum Sensor Rate (50-175 ppm)
+            'MSR': 0,
+            
+            # Byte 7: Atrial Amplitude (0-50 = 0-5.0V when divided by 10)
+            'Atrial Amplitude': 0,  # 2.5V
+            
+            # Byte 8: Ventricular Amplitude (0-50 = 0-5.0V when divided by 10)
+            'Ventricular Amplitude': 0,  # 2.5V
+            
+            # Byte 9: Atrial Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
+            'Atrial Pulse Width': 0,  # 1.0ms
+            
+            # Byte 10: Ventricular Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
+            'Ventricular Pulse Width': 0,  # 1.0ms
+            
+            # Byte 11: Atrial Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
+            'ATR_SENS': 0,  # 5.0mV
+            
+            # Byte 12: Ventricular Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
+            'VENT_SENS': 0,  # 5.0mV
+            
+            # Byte 13: VRP (15-50 = 150-500ms when multiplied by 10)
+            'VRP': 0,  # 250ms
+            
+            # Byte 14: ARP (15-50 = 150-500ms when multiplied by 10)
+            'ARP': 0,  # 250ms
+            
+            # Byte 15: Activity Threshold (0-255, unclear range)
+            'ACTIVITY_THRESHOLD': 0,
+            
+            # Byte 16: Reaction Time (10-50 seconds)
+            'REACTION_TIME': 0,
+            
+            # Byte 17: Response Factor (1-16)
+            'RESPONSE_FACTOR': 0,
+            
+            # Byte 18: Recovery Time (2-16 minutes)
+            'RECOVERY_TIME': 0
+        }
         
-        # Label for current parameters section
-        self.current_params_label = ttk.Label(self.current_params_frame, text="Current Pacemaker Parameters:", 
-                                             font=("Arial", 12, "bold"))
-        self.current_params_label.pack(anchor="w", pady=(0, 5))
-        
-        # Text widget to display parameters (read-only)
-        self.params_text = tk.Text(self.current_params_frame, height=8, width=70, state="disabled")
-        self.params_text.pack(fill="x")
-        
-        # Scrollbar for parameters text
-        params_scrollbar = ttk.Scrollbar(self.current_params_frame, orient="vertical", command=self.params_text.yview)
-        params_scrollbar.pack(side="right", fill="y")
-        self.params_text.configure(yscrollcommand=params_scrollbar.set)
 
     def show_parameters(self):
         # Clear the frame
@@ -290,9 +329,28 @@ class ParameterPage(tk.Frame):
             entry.pack(side="left", padx=5)
             self.widgets[p] = entry
 
-            # Placeholder for current pacemaker value
-            current_label = ttk.Label(row, text="On-Device: --", width=15, anchor="w", foreground="gray")
+            # Get current value from parameter manager
+            current_value = parameters.pacemaker_params.get_parameter(p)
+            display_value = self._format_display_value(p, current_value)
+            
+            current_label = ttk.Label(row, text=f"On-Device: {display_value}", width=15, anchor="w", foreground="gray")
             current_label.pack(side="left", padx=5)
+
+    def _format_display_value(self, param_name, raw_value):
+        """Convert raw parameter value to display format"""
+        if raw_value is None:
+            return "N/A"
+        
+        if "Amplitude" in param_name:
+            return f"{raw_value/10:.1f}V"
+        elif "Pulse Width" in param_name:
+            return f"{raw_value/10:.1f}ms"
+        elif param_name in ["ARP", "VRP"]:
+            return f"{raw_value*10}ms"
+        elif param_name in ["ATR_SENS", "VENT_SENS"]:
+            return f"{raw_value/10:.1f}mV"
+        else:
+            return str(raw_value)
 
     def upload_to_pacemaker(self):
         if not self.controller.pacemaker_connected:
@@ -318,9 +376,9 @@ class ParameterPage(tk.Frame):
                     # These are integer values
                     int_value = int(float(value))
                     if param_name == "Lower Rate Limit":
-                        parameters.pacemaker_params.set_parameter('LRL', int_value)
+                        parameters.pacemaker_params.set_parameter('Lower Rate Limit', int_value)
                     elif param_name == "Upper Rate Limit":
-                        parameters.pacemaker_params.set_parameter('URL', int_value)
+                        parameters.pacemaker_params.set_parameter('Upper Rate Limit', int_value)
                     elif param_name == "ARP":
                         parameters.pacemaker_params.set_parameter('ARP', int_value // 10)  # Convert to raw value
                     elif param_name == "VRP":
@@ -330,17 +388,17 @@ class ParameterPage(tk.Frame):
                     # Convert voltage to raw value (multiply by 10)
                     raw_value = int(float(value) * 10)
                     if "Atrial" in param_name:
-                        parameters.pacemaker_params.set_parameter('ATR_AMP', raw_value)
+                        parameters.pacemaker_params.set_parameter('Atrial Amplitude', raw_value)
                     else:
-                        parameters.pacemaker_params.set_parameter('VENT_AMP', raw_value)
+                        parameters.pacemaker_params.set_parameter('Ventricular Amplitude', raw_value)
                 
                 elif "Pulse Width" in param_name:
                     # Convert ms to raw value (multiply by 10)
                     raw_value = int(float(value) * 10)
                     if "Atrial" in param_name:
-                        parameters.pacemaker_params.set_parameter('ATR_PULSE_WIDTH', raw_value)
+                        parameters.pacemaker_params.set_parameter('Atrial Pulse Width', raw_value)
                     else:
-                        parameters.pacemaker_params.set_parameter('VENT_PULSE_WIDTH', raw_value)
+                        parameters.pacemaker_params.set_parameter('Ventricular Pulse Width', raw_value)
                         
             except ValueError:
                 self.upload_msg.config(text=f"Invalid value for {param_name}", foreground="red")
@@ -378,6 +436,10 @@ class ParameterPage(tk.Frame):
     def _fetch_parameters_thread(self):
         """Thread function to fetch parameters from pacemaker"""
         try:
+            # Clear the serial buffer first
+            if parameters.pacemaker_comm.ser.in_waiting > 0:
+                parameters.pacemaker_comm.ser.read(parameters.pacemaker_comm.ser.in_waiting)
+            
             # Set to echo mode and send request
             parameters.pacemaker_params.set_echo_mode()
             echo_bytes = parameters.pacemaker_params.get_parameter_bytes()
@@ -386,15 +448,22 @@ class ParameterPage(tk.Frame):
             success = parameters.pacemaker_comm.send_raw_parameters(echo_bytes)
             
             if success:
-                # Wait for response
-                time.sleep(1)
+                # Wait longer for response and read available data
+                time.sleep(2)  # Increased from 1 second
                 
                 # Read response from pacemaker
                 if parameters.pacemaker_comm.ser.in_waiting >= 18:
                     response = parameters.pacemaker_comm.ser.read(18)
                     
+                    print(f"Received {len(response)} bytes from pacemaker:")
+                    for i, byte in enumerate(response):
+                        print(f"  Byte {i}: {byte} (0x{byte:02x})")
+                    
                     # Update the parameters from the response
                     self._update_parameters_from_response(response)
+                    
+                    # Refresh the display in main thread
+                    self.after(0, self._refresh_display)
                     
                     # Switch back to parameter mode for future uploads
                     parameters.pacemaker_params.set_parameter_mode()
@@ -405,8 +474,9 @@ class ParameterPage(tk.Frame):
                         foreground="green"
                     ))
                 else:
+                    bytes_available = parameters.pacemaker_comm.ser.in_waiting
                     self.after(0, lambda: self.upload_msg.config(
-                        text="✗ No response from pacemaker", 
+                        text=f"✗ No response from pacemaker (only {bytes_available} bytes available)", 
                         foreground="red"
                     ))
             else:
@@ -421,6 +491,10 @@ class ParameterPage(tk.Frame):
                 foreground="red"
             ))
 
+    def _refresh_display(self):
+        """Refresh the parameter display with current values"""
+        self.show_parameters()
+
     def _update_parameters_from_response(self, response_bytes):
         """Update parameter manager and display from pacemaker response"""
         if len(response_bytes) != 18:
@@ -429,46 +503,16 @@ class ParameterPage(tk.Frame):
         
         try:
             # Update the parameter manager with the received bytes
-            parameters.pacemaker_params.set_parameters_from_bytes(response_bytes)
-            
-            # Get user-friendly parameter summary
-            summary = parameters.pacemaker_params.get_parameter_summary()
-            
-            # Format the display text
-            display_text = f"""Mode: {summary['mode']}
-Lower Rate Limit: {summary['lrl']} ppm
-Upper Rate Limit: {summary['url']} ppm
-Maximum Sensor Rate: {summary['msr']} ppm
-
-Atrial Amplitude: {summary['atrial_amp']:.1f} V
-Ventricular Amplitude: {summary['ventricular_amp']:.1f} V
-
-Atrial Pulse Width: {summary['atrial_pw']:.1f} ms
-Ventricular Pulse Width: {summary['ventricular_pw']:.1f} ms
-
-Atrial Sensitivity: {summary['atrial_sens']:.1f} mV
-Ventricular Sensitivity: {summary['ventricular_sens']:.1f} mV
-
-ARP: {summary['arp']} ms
-VRP: {summary['vrp']} ms
-
-Activity Threshold: {summary['activity_threshold']}
-Reaction Time: {summary['reaction_time']} s
-Response Factor: {summary['response_factor']}
-Recovery Time: {summary['recovery_time']} min"""
-            
-            # Update the display in the main thread
-            self.after(0, lambda: self._update_parameters_display(display_text))
-            
+            success = parameters.pacemaker_params.set_parameters_from_bytes(response_bytes)
+            if success:
+                print("Parameters successfully updated from pacemaker response")
+                # Print the updated parameters for verification
+                parameters.pacemaker_params.print_parameters()
+            else:
+                print("Failed to update parameters from response")
+                
         except Exception as e:
             print(f"Error updating parameters from response: {e}")
-
-    def _update_parameters_display(self, display_text):
-        """Update the parameters text display"""
-        self.params_text.config(state="normal")
-        self.params_text.delete(1.0, tk.END)
-        self.params_text.insert(1.0, display_text)
-        self.params_text.config(state="disabled")
 
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
