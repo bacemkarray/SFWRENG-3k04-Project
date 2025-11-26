@@ -9,7 +9,7 @@ class Main(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("DCM Interface Demo")
-        self.geometry("700x500")
+        self.geometry("700x700")
         self.resizable(False, False)
         
         # Pacemaker status indicator
@@ -518,41 +518,70 @@ class ParameterPage(tk.Frame):
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
 
+import csv
+import os
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import numpy as np
 
 class EgramPage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
         self.controller = controller
         
-        ttk.Label(self, text="Egram Display", font=("Arial", 14)).pack(pady=20)
+        ttk.Label(self, text="Egram Display", font=("Arial", 14)).pack(pady=10)
         
         self.egram_msg = ttk.Label(self, text="", foreground="red")
         self.egram_msg.pack(pady=5)
         
         # Frame for controls
         control_frame = tk.Frame(self)
-        control_frame.pack(pady=10)
+        control_frame.pack(pady=5)
         
         ttk.Button(control_frame, text="Start Egram", command=self.start_egram).pack(side="left", padx=5)
         ttk.Button(control_frame, text="Stop Egram", command=self.stop_egram).pack(side="left", padx=5)
-        ttk.Button(control_frame, text="Clear Display", command=self.clear_display).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="Test with CSV", command=self.test_with_csv).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="Clear Graph", command=self.clear_display).pack(side="left", padx=5)
         
-        ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=10)
+        ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=5)
         
-        # Text display for egram data
-        text_frame = tk.Frame(self)
-        text_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        # Create matplotlib figure for graphing
+        self.fig = Figure(figsize=(6, 4), dpi=100)
         
-        # Add scrollbar
-        scrollbar = ttk.Scrollbar(text_frame)
-        scrollbar.pack(side="right", fill="y")
+        # Create single plot for both signals
+        self.ax = self.fig.add_subplot(111)
         
-        self.egram_text = tk.Text(text_frame, height=15, width=80, yscrollcommand=scrollbar.set)
-        self.egram_text.pack(side="left", fill="both", expand=True)
-        scrollbar.config(command=self.egram_text.yview)
+        # Configure plot
+        self.ax.set_title('Egram Signals', fontsize=10)
+        self.ax.set_xlabel('Time (s)', fontsize=8)
+        self.ax.set_ylabel('Amplitude', fontsize=8)
+        self.ax.grid(True, alpha=0.3)
+        self.ax.legend(['Atrial', 'Ventricular'], loc='upper right', fontsize=8)
+        
+        self.fig.tight_layout()
+        
+        # Embed the figure in tkinter
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Data storage for plotting
+        self.time_data = []
+        self.atrial_data = []
+        self.ventricular_data = []
+        self.start_time = None
         
         # Control flag for continuous reading
         self.reading_egram = False
+        
+        # Display window parameters (show last N seconds)
+        self.display_window = 5.0  # Show last 5 seconds
+        
+        # Lines for real-time plotting
+        self.atrial_line, = self.ax.plot([], [], 'b-', linewidth=1, label='Atrial')
+        self.ventricular_line, = self.ax.plot([], [], 'r-', linewidth=1, label='Ventricular')
+        self.ax.legend()
         
     def start_egram(self):
         if not self.controller.pacemaker_connected:
@@ -564,8 +593,8 @@ class EgramPage(tk.Frame):
             return
             
         self.reading_egram = True
+        self.start_time = time.time()
         self.egram_msg.config(text="Reading egram data...", foreground="green")
-        self.egram_text.insert(tk.END, "=== Starting egram data capture ===\n\n")
         
         # Start reading in a separate thread
         thread = Thread(target=self._fetch_egram_thread, daemon=True)
@@ -575,12 +604,87 @@ class EgramPage(tk.Frame):
         """Stop the egram reading"""
         self.reading_egram = False
         self.egram_msg.config(text="Egram reading stopped", foreground="blue")
-        self.egram_text.insert(tk.END, "\n=== Egram capture stopped ===\n\n")
     
     def clear_display(self):
         """Clear the egram display"""
-        self.egram_text.delete(1.0, tk.END)
+        self.time_data.clear()
+        self.atrial_data.clear()
+        self.ventricular_data.clear()
+        
+        self.atrial_line.set_data([], [])
+        self.ventricular_line.set_data([], [])
+        
+        self.ax.relim()
+        self.ax.autoscale_view()
+        
+        self.canvas.draw()
         self.egram_msg.config(text="Display cleared", foreground="blue")
+    
+    def test_with_csv(self):
+        """Load and display data from heart_data.csv for testing"""
+        if self.reading_egram:
+            self.egram_msg.config(text="Stop current egram reading first", foreground="orange")
+            return
+        
+        # Check if CSV file exists
+        csv_path = "heart_data.csv"
+        if not os.path.exists(csv_path):
+            self.egram_msg.config(text="✗ heart_data.csv not found", foreground="red")
+            return
+        
+        self.reading_egram = True
+        self.start_time = time.time()
+        self.egram_msg.config(text="Loading test data from CSV...", foreground="green")
+        
+        # Start CSV reading in a separate thread
+        thread = Thread(target=self._read_csv_thread, args=(csv_path,), daemon=True)
+        thread.start()
+    
+    def _read_csv_thread(self, csv_path):
+        """Thread function to read and display CSV data"""
+        try:
+            sample_count = 0
+            
+            with open(csv_path, 'r') as csvfile:
+                reader = csv.DictReader(csvfile)
+                
+                for row in reader:
+                    if not self.reading_egram:
+                        break
+                    
+                    # Parse the CSV row
+                    time_val = float(row['Time(s)'])
+                    ventricular = int(row['Ventricular'])
+                    atrial = int(row['Atrial'])
+                    
+                    sample_count += 1
+                    
+                    # Update plot data
+                    self.after(0, lambda t=time_val, a=atrial, v=ventricular: 
+                              self._add_data_point(t, a, v))
+                    
+                    # Update plot every 10 samples
+                    if sample_count % 10 == 0:
+                        self.after(0, self._update_plot)
+                    
+                    # Simulate real-time playback
+                    time.sleep(0.01)  # 10ms between samples
+                
+                # Final plot update
+                self.after(0, self._update_plot)
+            
+            self.reading_egram = False
+            self.after(0, lambda c=sample_count: self.egram_msg.config(
+                text=f"✓ Played back {c} samples from CSV", 
+                foreground="green"
+            ))
+                
+        except Exception as e:
+            self.reading_egram = False
+            self.after(0, lambda: self.egram_msg.config(
+                text=f"✗ Error reading CSV: {str(e)}", 
+                foreground="red"
+            ))
     
     def _fetch_egram_thread(self):
         """Thread function to continuously fetch egram data from pacemaker"""
@@ -606,35 +710,33 @@ class EgramPage(tk.Frame):
                     egram_data = parameters.pacemaker_comm.ser.read(16)
                     
                     if len(egram_data) == 16:
-                        # Parse the 16 bytes
-                        # Assuming format: 8 bytes atrial + 8 bytes ventricular (as 16-bit values)
-                        atrial_samples = []
-                        ventricular_samples = []
+                        # Calculate elapsed time
+                        current_time = time.time() - self.start_time
                         
                         # Parse 4 atrial samples (2 bytes each)
                         for i in range(0, 8, 2):
                             sample = int.from_bytes(egram_data[i:i+2], 'little', signed=False)
-                            atrial_samples.append(sample)
+                            # Add time offset for each sample (assuming ~1ms between samples)
+                            sample_time = current_time + (i/8) * 0.004
+                            self.after(0, lambda t=sample_time, a=sample, v=0: 
+                                      self._add_data_point(t, a, v))
                         
                         # Parse 4 ventricular samples (2 bytes each)
                         for i in range(8, 16, 2):
                             sample = int.from_bytes(egram_data[i:i+2], 'little', signed=False)
-                            ventricular_samples.append(sample)
+                            idx = i - 8
+                            sample_time = current_time + (idx/8) * 0.004
+                            # Update ventricular data for this time point
+                            if len(self.ventricular_data) > 0:
+                                self.ventricular_data[-4 + idx//2] = sample
                         
                         sample_count += 1
                         
-                        # Update display in main thread (limit updates to avoid overwhelming GUI)
-                        if sample_count % 10 == 0:  # Update every 10 samples
-                            self.after(0, lambda a=atrial_samples, v=ventricular_samples, c=sample_count: 
-                                      self._update_egram_display(a, v, c))
-                        
-                        # Also print raw data for debugging
-                        if sample_count % 50 == 0:  # Print every 50 samples
-                            print(f"Sample {sample_count}:")
-                            print(f"  Atrial: {atrial_samples}")
-                            print(f"  Ventricular: {ventricular_samples}")
+                        # Update plot periodically
+                        if sample_count % 10 == 0:
+                            self.after(0, self._update_plot)
                 
-                time.sleep(0.01)  # Small delay to prevent overwhelming the serial port
+                time.sleep(0.01)  # Small delay
             
             # Final update
             self.after(0, lambda c=sample_count: self.egram_msg.config(
@@ -648,28 +750,44 @@ class EgramPage(tk.Frame):
                 text=f"✗ Error reading egram: {str(e)}", 
                 foreground="red"
             ))
-            self.after(0, lambda: self.egram_text.insert(tk.END, f"\nError: {str(e)}\n"))
     
-    def _update_egram_display(self, atrial_samples, ventricular_samples, sample_count):
-        """Update the egram display with new samples"""
+    def _add_data_point(self, time_val, atrial_val, ventricular_val):
+        """Add a data point to the plot buffers"""
+        self.time_data.append(time_val)
+        self.atrial_data.append(atrial_val)
+        self.ventricular_data.append(ventricular_val)
+        
+        # Keep only last 1000 points to prevent memory issues
+        if len(self.time_data) > 1000:
+            self.time_data.pop(0)
+            self.atrial_data.pop(0)
+            self.ventricular_data.pop(0)
+    
+    def _update_plot(self):
+        """Update the matplotlib plot with current data"""
         try:
-            # Format the data for display
-            display_text = f"Sample {sample_count}:\n"
-            display_text += f"  Atrial:      {', '.join(f'{s:5d}' for s in atrial_samples)}\n"
-            display_text += f"  Ventricular: {', '.join(f'{s:5d}' for s in ventricular_samples)}\n\n"
+            if len(self.time_data) == 0:
+                return
             
-            self.egram_text.insert(tk.END, display_text)
+            # Update line data
+            self.atrial_line.set_data(self.time_data, self.atrial_data)
+            self.ventricular_line.set_data(self.time_data, self.ventricular_data)
             
-            # Auto-scroll to bottom
-            self.egram_text.see(tk.END)
+            # Get the latest time value
+            latest_time = self.time_data[-1]
             
-            # Limit text buffer size to prevent memory issues
-            lines = int(self.egram_text.index('end-1c').split('.')[0])
-            if lines > 500:  # Keep only last 500 lines
-                self.egram_text.delete(1.0, "100.0")
-                
+            # Set x-axis limits to show a scrolling window
+            self.ax.set_xlim(latest_time - self.display_window, latest_time)
+            
+            # Auto-scale y-axis only
+            self.ax.relim()
+            self.ax.autoscale_view(scalex=False, scaley=True)
+            
+            # Redraw canvas
+            self.canvas.draw()
+            
         except Exception as e:
-            print(f"Display update error: {e}")
+            print(f"Plot update error: {e}")
     
     def go_back(self):
         # Stop reading if still active
