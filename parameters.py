@@ -12,6 +12,8 @@ PARAMETER_RULES = {
     "Fixed AV Delay": (70, 300),
     "Atrial Amplitude": (0, 5),
     "Atrial Pulse Width": (0.1, 1.9),
+    "Atrial Amplitude": (0.5, 5.0),
+    "Atrial Pulse Width": (0.05, 1.9),
     "Atrial Sensitivity": (0.25, 10.0),
     "Ventricular Amplitude": (0, 5),
     "Ventricular Pulse Width": (0.1, 1.9),

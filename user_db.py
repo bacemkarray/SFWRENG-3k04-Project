@@ -16,6 +16,9 @@ def register_user(username, password):
     # Can't register multiple users with same username
     if len(data) == 10:
         return False
+    # Can't reguster empty username or password
+    if username == "" or password == "":
+        return False
     for user in data:
         if user["username"] == username:
             return False

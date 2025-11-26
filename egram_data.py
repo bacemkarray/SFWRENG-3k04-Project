@@ -8,7 +8,7 @@ class EgramData:
         self.time.clear()
         self.values.clear()
 
-        
+
 
 egram = EgramData()
 

@@ -517,6 +517,62 @@ class ParameterPage(tk.Frame):
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
 
+
+class EgramPage(tk.Frame):
+    def __init__(self, parent, controller):
+        super().__init__(parent)
+        self.controller = controller
+        
+        ttk.Label(self, text="Egram Display", font=("Arial", 14)).pack(pady=20)
+        
+        self.egram_msg = ttk.Label(self, text="", foreground="red")
+        self.egram_msg.pack(pady=5)
+        
+        ttk.Button(self, text="Start Egram", command=self.start_egram).pack(pady=5)
+        ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=10)
+        
+        # Simple text display for egram data
+        self.egram_text = tk.Text(self, height=15, width=80)
+        self.egram_text.pack(pady=10, padx=10)
+        
+    def start_egram(self):
+        if not self.controller.pacemaker_connected:
+            self.egram_msg.config(text="Cannot read egram - Pacemaker not connected", foreground="red")
+            return
+            
+        self.egram_msg.config(text="Reading egram data...", foreground="green")
+        self.egram_text.delete(1.0, tk.END)
+        self.egram_text.insert(tk.END, "Reading egram data from pacemaker...\n\n")
+        
+        # Test the egram reading directly
+        def read_egram_thread():
+            try:
+                # Test if we can read basic data first
+                if parameters.pacemaker_comm.ser.in_waiting >= 4:
+                    test_data = parameters.pacemaker_comm.ser.read(4)
+                    self.egram_text.insert(tk.END, f"Test read: {len(test_data)} bytes\n")
+                    
+                    # Now read for real
+                    atrial, ventricular = parameters.pacemaker_comm.read_egram(5)
+                    if atrial and ventricular:
+                        self.egram_text.insert(tk.END, f"✓ Success! {len(atrial)} samples\n")
+                        self.egram_text.insert(tk.END, f"Ventricular range: {min(ventricular)}-{max(ventricular)}\n")
+                        self.egram_text.insert(tk.END, f"Atrial range: {min(atrial)}-{max(atrial)}\n")
+                    else:
+                        self.egram_text.insert(tk.END, "✗ No data received\n")
+                else:
+                    self.egram_text.insert(tk.END, "No data available to read\n")
+                    
+            except Exception as e:
+                self.egram_text.insert(tk.END, f"Error: {e}\n")
+        
+        thread = Thread(target=read_egram_thread, daemon=True)
+        thread.start()
+    
+    def go_back(self):
+        self.controller.show_frame(ModeSelectPage)
+
+
 if __name__ == "__main__":
     app = Main()
     app.mainloop()
