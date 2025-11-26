@@ -324,7 +324,7 @@ class EgramPage(tk.Frame):
         self.egram_msg.pack(pady=5)
         
         ttk.Button(self, text="Start Egram", command=self.start_egram).pack(pady=5)
-        ttk.Button(self, text="Back to Welcome", command=self.go_back).pack(pady=10)
+        ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=10)
         
         # Simple text display for egram data
         self.egram_text = tk.Text(self, height=15, width=80)
@@ -365,7 +365,7 @@ class EgramPage(tk.Frame):
         thread.start()
     
     def go_back(self):
-        self.controller.show_frame(WelcomePage)
+        self.controller.show_frame(ModeSelectPage)
 
 
 if __name__ == "__main__":
