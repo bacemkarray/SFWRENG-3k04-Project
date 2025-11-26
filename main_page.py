@@ -37,8 +37,8 @@ class Main(tk.Tk):
         # Frames dictionary
         self.frames = {}
 
-        # Append each page into the frames dict (removed EgramPage)
-        for F in (WelcomePage, ModeSelectPage, ParameterPage, RegisterUserPage):
+        # Append each page into the frames dict
+        for F in (WelcomePage, ModeSelectPage, ParameterPage, RegisterUserPage, EgramPage):
             frame = F(container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky="nsew")
@@ -200,7 +200,8 @@ class ModeSelectPage(tk.Frame):
         ttk.Button(self, text="AAI", command=lambda: self.select_mode("AAI")).pack(pady=5)
         ttk.Button(self, text="VOO", command=lambda: self.select_mode("VOO")).pack(pady=5)
         ttk.Button(self, text="VVI", command=lambda: self.select_mode("VVI")).pack(pady=5)
-        
+
+        ttk.Button(self, text="Egram Display", command=lambda: controller.show_frame(EgramPage)).pack(pady=20)
         ttk.Button(self, text="Back", command=lambda: controller.show_frame(WelcomePage)).pack(pady=20)
 
     def select_mode(self, mode):
@@ -528,48 +529,154 @@ class EgramPage(tk.Frame):
         self.egram_msg = ttk.Label(self, text="", foreground="red")
         self.egram_msg.pack(pady=5)
         
-        ttk.Button(self, text="Start Egram", command=self.start_egram).pack(pady=5)
+        # Frame for controls
+        control_frame = tk.Frame(self)
+        control_frame.pack(pady=10)
+        
+        ttk.Button(control_frame, text="Start Egram", command=self.start_egram).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="Stop Egram", command=self.stop_egram).pack(side="left", padx=5)
+        ttk.Button(control_frame, text="Clear Display", command=self.clear_display).pack(side="left", padx=5)
+        
         ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=10)
         
-        # Simple text display for egram data
-        self.egram_text = tk.Text(self, height=15, width=80)
-        self.egram_text.pack(pady=10, padx=10)
+        # Text display for egram data
+        text_frame = tk.Frame(self)
+        text_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.egram_text = tk.Text(text_frame, height=15, width=80, yscrollcommand=scrollbar.set)
+        self.egram_text.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.egram_text.yview)
+        
+        # Control flag for continuous reading
+        self.reading_egram = False
         
     def start_egram(self):
         if not self.controller.pacemaker_connected:
             self.egram_msg.config(text="Cannot read egram - Pacemaker not connected", foreground="red")
             return
+        
+        if self.reading_egram:
+            self.egram_msg.config(text="Egram reading already in progress", foreground="orange")
+            return
             
+        self.reading_egram = True
         self.egram_msg.config(text="Reading egram data...", foreground="green")
-        self.egram_text.delete(1.0, tk.END)
-        self.egram_text.insert(tk.END, "Reading egram data from pacemaker...\n\n")
+        self.egram_text.insert(tk.END, "=== Starting egram data capture ===\n\n")
         
-        # Test the egram reading directly
-        def read_egram_thread():
-            try:
-                # Test if we can read basic data first
-                if parameters.pacemaker_comm.ser.in_waiting >= 4:
-                    test_data = parameters.pacemaker_comm.ser.read(4)
-                    self.egram_text.insert(tk.END, f"Test read: {len(test_data)} bytes\n")
-                    
-                    # Now read for real
-                    atrial, ventricular = parameters.pacemaker_comm.read_egram(5)
-                    if atrial and ventricular:
-                        self.egram_text.insert(tk.END, f"✓ Success! {len(atrial)} samples\n")
-                        self.egram_text.insert(tk.END, f"Ventricular range: {min(ventricular)}-{max(ventricular)}\n")
-                        self.egram_text.insert(tk.END, f"Atrial range: {min(atrial)}-{max(atrial)}\n")
-                    else:
-                        self.egram_text.insert(tk.END, "✗ No data received\n")
-                else:
-                    self.egram_text.insert(tk.END, "No data available to read\n")
-                    
-            except Exception as e:
-                self.egram_text.insert(tk.END, f"Error: {e}\n")
-        
-        thread = Thread(target=read_egram_thread, daemon=True)
+        # Start reading in a separate thread
+        thread = Thread(target=self._fetch_egram_thread, daemon=True)
         thread.start()
     
+    def stop_egram(self):
+        """Stop the egram reading"""
+        self.reading_egram = False
+        self.egram_msg.config(text="Egram reading stopped", foreground="blue")
+        self.egram_text.insert(tk.END, "\n=== Egram capture stopped ===\n\n")
+    
+    def clear_display(self):
+        """Clear the egram display"""
+        self.egram_text.delete(1.0, tk.END)
+        self.egram_msg.config(text="Display cleared", foreground="blue")
+    
+    def _fetch_egram_thread(self):
+        """Thread function to continuously fetch egram data from pacemaker"""
+        try:
+            # Clear the serial buffer first
+            if parameters.pacemaker_comm.ser.in_waiting > 0:
+                parameters.pacemaker_comm.ser.read(parameters.pacemaker_comm.ser.in_waiting)
+            
+            sample_count = 0
+            
+            while self.reading_egram:
+                # Check if pacemaker is still connected
+                if not self.controller.pacemaker_connected:
+                    self.after(0, lambda: self.egram_msg.config(
+                        text="✗ Pacemaker disconnected", 
+                        foreground="red"
+                    ))
+                    self.reading_egram = False
+                    break
+                
+                # Read 16 bytes of egram data
+                if parameters.pacemaker_comm.ser.in_waiting >= 16:
+                    egram_data = parameters.pacemaker_comm.ser.read(16)
+                    
+                    if len(egram_data) == 16:
+                        # Parse the 16 bytes
+                        # Assuming format: 8 bytes atrial + 8 bytes ventricular (as 16-bit values)
+                        atrial_samples = []
+                        ventricular_samples = []
+                        
+                        # Parse 4 atrial samples (2 bytes each)
+                        for i in range(0, 8, 2):
+                            sample = int.from_bytes(egram_data[i:i+2], 'little', signed=False)
+                            atrial_samples.append(sample)
+                        
+                        # Parse 4 ventricular samples (2 bytes each)
+                        for i in range(8, 16, 2):
+                            sample = int.from_bytes(egram_data[i:i+2], 'little', signed=False)
+                            ventricular_samples.append(sample)
+                        
+                        sample_count += 1
+                        
+                        # Update display in main thread (limit updates to avoid overwhelming GUI)
+                        if sample_count % 10 == 0:  # Update every 10 samples
+                            self.after(0, lambda a=atrial_samples, v=ventricular_samples, c=sample_count: 
+                                      self._update_egram_display(a, v, c))
+                        
+                        # Also print raw data for debugging
+                        if sample_count % 50 == 0:  # Print every 50 samples
+                            print(f"Sample {sample_count}:")
+                            print(f"  Atrial: {atrial_samples}")
+                            print(f"  Ventricular: {ventricular_samples}")
+                
+                time.sleep(0.01)  # Small delay to prevent overwhelming the serial port
+            
+            # Final update
+            self.after(0, lambda c=sample_count: self.egram_msg.config(
+                text=f"✓ Captured {c} egram samples", 
+                foreground="green"
+            ))
+                
+        except Exception as e:
+            self.reading_egram = False
+            self.after(0, lambda: self.egram_msg.config(
+                text=f"✗ Error reading egram: {str(e)}", 
+                foreground="red"
+            ))
+            self.after(0, lambda: self.egram_text.insert(tk.END, f"\nError: {str(e)}\n"))
+    
+    def _update_egram_display(self, atrial_samples, ventricular_samples, sample_count):
+        """Update the egram display with new samples"""
+        try:
+            # Format the data for display
+            display_text = f"Sample {sample_count}:\n"
+            display_text += f"  Atrial:      {', '.join(f'{s:5d}' for s in atrial_samples)}\n"
+            display_text += f"  Ventricular: {', '.join(f'{s:5d}' for s in ventricular_samples)}\n\n"
+            
+            self.egram_text.insert(tk.END, display_text)
+            
+            # Auto-scroll to bottom
+            self.egram_text.see(tk.END)
+            
+            # Limit text buffer size to prevent memory issues
+            lines = int(self.egram_text.index('end-1c').split('.')[0])
+            if lines > 500:  # Keep only last 500 lines
+                self.egram_text.delete(1.0, "100.0")
+                
+        except Exception as e:
+            print(f"Display update error: {e}")
+    
     def go_back(self):
+        # Stop reading if still active
+        if self.reading_egram:
+            self.stop_egram()
+            time.sleep(0.5)  # Give thread time to stop
+        
         self.controller.show_frame(ModeSelectPage)
 
 
