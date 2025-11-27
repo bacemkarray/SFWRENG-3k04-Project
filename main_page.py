@@ -693,7 +693,7 @@ class EgramPage(tk.Frame):
                         except struct.error as e:
                             print(f"Error unpacking egram data: {e}")
                 
-                time.sleep(0.05)
+                time.sleep(0.0001)
             
             self.after(0, lambda c=sample_count: self.egram_msg.config(
                 text=f"✓ Captured {c} egram samples",
