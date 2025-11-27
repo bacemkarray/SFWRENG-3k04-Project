@@ -4,6 +4,10 @@ import user_db
 import parameters
 from threading import Thread
 import time
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+import numpy as np
 
 class Main(tk.Tk):
     def __init__(self):
@@ -518,12 +522,11 @@ class ParameterPage(tk.Frame):
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
 
-import csv
-import os
+
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import numpy as np
+import struct
 
 class EgramPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -541,8 +544,27 @@ class EgramPage(tk.Frame):
         
         ttk.Button(control_frame, text="Start Egram", command=self.start_egram).pack(side="left", padx=5)
         ttk.Button(control_frame, text="Stop Egram", command=self.stop_egram).pack(side="left", padx=5)
-        ttk.Button(control_frame, text="Test with CSV", command=self.test_with_csv).pack(side="left", padx=5)
         ttk.Button(control_frame, text="Clear Graph", command=self.clear_display).pack(side="left", padx=5)
+        
+        # Frame for gain and filter controls
+        settings_frame = tk.Frame(self)
+        settings_frame.pack(pady=5)
+        
+        # Gain control
+        ttk.Label(settings_frame, text="Gain:").pack(side="left", padx=5)
+        self.gain_var = tk.DoubleVar(value=1.0)
+        ttk.Radiobutton(settings_frame, text="0.5x", variable=self.gain_var, value=0.5,
+                       command=self._update_plot).pack(side="left", padx=2)
+        ttk.Radiobutton(settings_frame, text="1x", variable=self.gain_var, value=1.0,
+                       command=self._update_plot).pack(side="left", padx=2)
+        ttk.Radiobutton(settings_frame, text="2x", variable=self.gain_var, value=2.0,
+                       command=self._update_plot).pack(side="left", padx=2)
+        
+        # High-pass filter control
+        ttk.Label(settings_frame, text="  High-Pass Filter:").pack(side="left", padx=(15, 5))
+        self.filter_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(settings_frame, text="Enable", variable=self.filter_var,
+                       command=self._update_plot).pack(side="left", padx=2)
         
         ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=5)
         
@@ -570,15 +592,17 @@ class EgramPage(tk.Frame):
         self.time_data = []
         self.atrial_data = []
         self.ventricular_data = []
+        self.atrial_data_raw = []    # raw unfiltered data
+        self.ventricular_data_raw = []
         self.start_time = None
         
         # Control flag for continuous reading
         self.reading_egram = False
         
-        # Display window parameters (show last N seconds)
+        # Display window parameters
         self.display_window = 5.0  # Show last 5 seconds
         
-        # Lines for real-time plotting
+        # Matplotlib lines
         self.atrial_line, = self.ax.plot([], [], 'b-', linewidth=1, label='Atrial')
         self.ventricular_line, = self.ax.plot([], [], 'r-', linewidth=1, label='Ventricular')
         self.ax.legend()
@@ -610,6 +634,8 @@ class EgramPage(tk.Frame):
         self.time_data.clear()
         self.atrial_data.clear()
         self.ventricular_data.clear()
+        self.atrial_data_raw.clear()
+        self.ventricular_data_raw.clear()
         
         self.atrial_line.set_data([], [])
         self.ventricular_line.set_data([], [])
@@ -620,182 +646,148 @@ class EgramPage(tk.Frame):
         self.canvas.draw()
         self.egram_msg.config(text="Display cleared", foreground="blue")
     
-    def test_with_csv(self):
-        """Load and display data from heart_data.csv for testing"""
-        if self.reading_egram:
-            self.egram_msg.config(text="Stop current egram reading first", foreground="orange")
-            return
-        
-        # Check if CSV file exists
-        csv_path = "heart_data.csv"
-        if not os.path.exists(csv_path):
-            self.egram_msg.config(text="✗ heart_data.csv not found", foreground="red")
-            return
-        
-        self.reading_egram = True
-        self.start_time = time.time()
-        self.egram_msg.config(text="Loading test data from CSV...", foreground="green")
-        
-        # Start CSV reading in a separate thread
-        thread = Thread(target=self._read_csv_thread, args=(csv_path,), daemon=True)
-        thread.start()
-    
-    def _read_csv_thread(self, csv_path):
-        """Thread function to read and display CSV data"""
-        try:
-            sample_count = 0
-            
-            with open(csv_path, 'r') as csvfile:
-                reader = csv.DictReader(csvfile)
-                
-                for row in reader:
-                    if not self.reading_egram:
-                        break
-                    
-                    # Parse the CSV row
-                    time_val = float(row['Time(s)'])
-                    ventricular = int(row['Ventricular'])
-                    atrial = int(row['Atrial'])
-                    
-                    sample_count += 1
-                    
-                    # Update plot data
-                    self.after(0, lambda t=time_val, a=atrial, v=ventricular: 
-                              self._add_data_point(t, a, v))
-                    
-                    # Update plot every 10 samples
-                    if sample_count % 10 == 0:
-                        self.after(0, self._update_plot)
-                    
-                    # Simulate real-time playback
-                    time.sleep(0.01)  # 10ms between samples
-                
-                # Final plot update
-                self.after(0, self._update_plot)
-            
-            self.reading_egram = False
-            self.after(0, lambda c=sample_count: self.egram_msg.config(
-                text=f"✓ Played back {c} samples from CSV", 
-                foreground="green"
-            ))
-                
-        except Exception as e:
-            self.reading_egram = False
-            self.after(0, lambda: self.egram_msg.config(
-                text=f"✗ Error reading CSV: {str(e)}", 
-                foreground="red"
-            ))
-    
     def _fetch_egram_thread(self):
         """Thread function to continuously fetch egram data from pacemaker"""
         try:
-            # Clear the serial buffer first
+            # Clear serial buffer
             if parameters.pacemaker_comm.ser.in_waiting > 0:
                 parameters.pacemaker_comm.ser.read(parameters.pacemaker_comm.ser.in_waiting)
             
             sample_count = 0
             
+            echo_packet = self._build_echo_packet()
+            parameters.pacemaker_comm.ser.write(echo_packet)
+            print("Echo packet sent to start egram capture")
+            
             while self.reading_egram:
-                # Check if pacemaker is still connected
                 if not self.controller.pacemaker_connected:
                     self.after(0, lambda: self.egram_msg.config(
-                        text="✗ Pacemaker disconnected", 
+                        text="✗ Pacemaker disconnected",
                         foreground="red"
                     ))
                     self.reading_egram = False
                     break
                 
-                # Read 16 bytes of egram data
-                if parameters.pacemaker_comm.ser.in_waiting >= 16:
-                    egram_data = parameters.pacemaker_comm.ser.read(16)
+                if parameters.pacemaker_comm.ser.in_waiting >= 32:
+                    packet_data = parameters.pacemaker_comm.ser.read(32)
                     
-                    if len(egram_data) == 16:
-                        # Calculate elapsed time
-                        current_time = time.time() - self.start_time
+                    if len(packet_data) == 32:
+                        egram_bytes = packet_data[16:32]
                         
-                        # Parse 4 atrial samples (2 bytes each)
-                        for i in range(0, 8, 2):
-                            sample = int.from_bytes(egram_data[i:i+2], 'little', signed=False)
-                            # Add time offset for each sample (assuming ~1ms between samples)
-                            sample_time = current_time + (i/8) * 0.004
-                            self.after(0, lambda t=sample_time, a=sample, v=0: 
-                                      self._add_data_point(t, a, v))
-                        
-                        # Parse 4 ventricular samples (2 bytes each)
-                        for i in range(8, 16, 2):
-                            sample = int.from_bytes(egram_data[i:i+2], 'little', signed=False)
-                            idx = i - 8
-                            sample_time = current_time + (idx/8) * 0.004
-                            # Update ventricular data for this time point
-                            if len(self.ventricular_data) > 0:
-                                self.ventricular_data[-4 + idx//2] = sample
-                        
-                        sample_count += 1
-                        
-                        # Update plot periodically
-                        if sample_count % 10 == 0:
+                        try:
+                            atrial_value = struct.unpack('<d', egram_bytes[0:8])[0]
+                            ventricular_value = struct.unpack('<d', egram_bytes[8:16])[0]
+                            
+                            current_time = time.time() - self.start_time
+                            
+                            self.after(0, lambda t=current_time, a=atrial_value, v=ventricular_value:
+                                       self._add_data_point(t, a, v))
+                            
+                            sample_count += 1
+                            print(f"Sample {sample_count}: Atrial={atrial_value:.6f}, Ventricular={ventricular_value:.6f}")
+                            
                             self.after(0, self._update_plot)
+                            
+                            parameters.pacemaker_comm.ser.write(echo_packet)
+                        
+                        except struct.error as e:
+                            print(f"Error unpacking egram data: {e}")
                 
-                time.sleep(0.01)  # Small delay
+                time.sleep(0.05)
             
-            # Final update
             self.after(0, lambda c=sample_count: self.egram_msg.config(
-                text=f"✓ Captured {c} egram samples", 
+                text=f"✓ Captured {c} egram samples",
                 foreground="green"
             ))
                 
         except Exception as e:
             self.reading_egram = False
             self.after(0, lambda: self.egram_msg.config(
-                text=f"✗ Error reading egram: {str(e)}", 
+                text=f"✗ Error reading egram: {str(e)}",
                 foreground="red"
             ))
+            print(f"Egram thread error: {e}")
+    
+    def _build_echo_packet(self):
+        """Build an echo packet to request egram data from pacemaker"""
+        return bytearray([
+            0x16, 0x22, 1, 60, 120, 120, 35, 35,
+            4, 4, 75, 75, 32, 25, 10, 30,
+            8, 5
+        ])
     
     def _add_data_point(self, time_val, atrial_val, ventricular_val):
-        """Add a data point to the plot buffers"""
+        """Add a data point to the buffers"""
         self.time_data.append(time_val)
-        self.atrial_data.append(atrial_val)
-        self.ventricular_data.append(ventricular_val)
         
-        # Keep only last 1000 points to prevent memory issues
+        self.atrial_data_raw.append(atrial_val)
+        self.ventricular_data_raw.append(ventricular_val)
+        
+        gain = self.gain_var.get()
+        use_filter = self.filter_var.get()
+        
+        if use_filter and len(self.atrial_data_raw) > 1:
+            # --- 2-point moving average high-pass filter ---
+            atrial_filtered = (atrial_val - self.atrial_data_raw[-2]) / 2.0
+            ventricular_filtered = (ventricular_val - self.ventricular_data_raw[-2]) / 2.0
+            
+            self.atrial_data.append(atrial_filtered * gain)
+            self.ventricular_data.append(ventricular_filtered * gain)
+        else:
+            self.atrial_data.append(atrial_val * gain)
+            self.ventricular_data.append(ventricular_val * gain)
+        
         if len(self.time_data) > 1000:
             self.time_data.pop(0)
             self.atrial_data.pop(0)
             self.ventricular_data.pop(0)
+            self.atrial_data_raw.pop(0)
+            self.ventricular_data_raw.pop(0)
     
     def _update_plot(self):
-        """Update the matplotlib plot with current data"""
+        """Recompute signals and update plot"""
         try:
             if len(self.time_data) == 0:
                 return
             
-            # Update line data
+            gain = self.gain_var.get()
+            use_filter = self.filter_var.get()
+            
+            self.atrial_data.clear()
+            self.ventricular_data.clear()
+            
+            for i in range(len(self.atrial_data_raw)):
+                if use_filter and i > 0:
+                    a_f = (self.atrial_data_raw[i] - self.atrial_data_raw[i - 1]) / 2.0
+                    v_f = (self.ventricular_data_raw[i] - self.ventricular_data_raw[i - 1]) / 2.0
+                    
+                    self.atrial_data.append(a_f * gain)
+                    self.ventricular_data.append(v_f * gain)
+                else:
+                    self.atrial_data.append(self.atrial_data_raw[i] * gain)
+                    self.ventricular_data.append(self.ventricular_data_raw[i] * gain)
+            
             self.atrial_line.set_data(self.time_data, self.atrial_data)
             self.ventricular_line.set_data(self.time_data, self.ventricular_data)
             
-            # Get the latest time value
             latest_time = self.time_data[-1]
             
-            # Set x-axis limits to show a scrolling window
             self.ax.set_xlim(latest_time - self.display_window, latest_time)
-            
-            # Auto-scale y-axis only
             self.ax.relim()
             self.ax.autoscale_view(scalex=False, scaley=True)
             
-            # Redraw canvas
             self.canvas.draw()
-            
+        
         except Exception as e:
             print(f"Plot update error: {e}")
     
     def go_back(self):
-        # Stop reading if still active
         if self.reading_egram:
             self.stop_egram()
-            time.sleep(0.5)  # Give thread time to stop
+            time.sleep(0.5)
         
         self.controller.show_frame(ModeSelectPage)
+
 
 
 if __name__ == "__main__":

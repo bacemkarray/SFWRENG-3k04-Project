@@ -5,7 +5,7 @@ import keyboard  # You may need to install this with `pip install keyboard`
 # ---------------------------
 # Configuration
 # ---------------------------
-PORT = 'COM5'         # Replace with your pacemaker's COM port
+PORT = 'COM3'         # Replace with your pacemaker's COM port
 BAUD = 115200         # Must match your Simulink serial settings
 TIMEOUT = 0.1         # Serial read timeout in seconds
 

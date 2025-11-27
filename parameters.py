@@ -44,7 +44,7 @@ def validate_param(param_name, value):
     return True, ""
 
 class PacemakerCommunicator:
-    def __init__(self, port='COM5', baudrate=115200):
+    def __init__(self, port='COM3', baudrate=115200):
         self.port = port
         self.baudrate = baudrate
         self.ser = None
