@@ -464,6 +464,7 @@ class ParameterPage(tk.Frame):
         params = parameters.MODE_PARAMETER_LAYOUT.get(mode, [])
 
         for p in params:
+            
             row = tk.Frame(self.form_frame)
             row.pack(fill="x", pady=3)
 
@@ -473,8 +474,11 @@ class ParameterPage(tk.Frame):
             self.widgets[p] = entry
 
             # Retrieve raw value already stored in pacemaker_params
-            raw_value = parameters.pacemaker_params.get_parameter(p)
-            display_value = self._format_display_value(p, raw_value)
+            if not self.controller.pacemaker_connected:
+                display_value = "—"
+            else:
+                raw_value = parameters.pacemaker_params.get_parameter(p)
+                display_value = self._format_display_value(p, raw_value)
 
             ttk.Label(
                 row,
