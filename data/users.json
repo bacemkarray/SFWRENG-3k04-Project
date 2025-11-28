@@ -55,7 +55,7 @@
                 "Lower Rate Limit": 30,
                 "Upper Rate Limit": 50,
                 "Maximum Sensor Rate": 50,
-                "Atrial Amplitude": 0,
+                "Atrial Amplitude": 0.1,
                 "Atrial Pulse Width": 1,
                 "Atrial Sensitivity": 0,
                 "ARP": 150,

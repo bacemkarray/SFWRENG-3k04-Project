@@ -387,14 +387,7 @@ class ParameterPage(tk.Frame):
             if param_name in mode_dict:
                 raw = mode_dict[param_name]
                 
-                # convert raw -> display
-                if "Amplitude" in param_name:
-                    display = raw / 10
-                elif "Pulse Width" in param_name:
-                    display = raw / 10
-                elif param_name in ["ARP", "VRP"]:
-                    display = raw * 10
-                elif param_name == "Activity Threshold":
+                if param_name == "Activity Threshold":
                     display = parameters.REVERSE_ACTIVITY_MAP[raw]
                 else:
                     display = raw
@@ -475,10 +468,20 @@ class ParameterPage(tk.Frame):
             row.pack(fill="x", pady=3)
 
             ttk.Label(row, text=p).pack(side="left", padx=5)
+
             entry = self.create_dropdown(row, p)
             self.widgets[p] = entry
 
+            # Retrieve raw value already stored in pacemaker_params
+            raw_value = parameters.pacemaker_params.get_parameter(p)
+            display_value = self._format_display_value(p, raw_value)
 
+            ttk.Label(
+                row,
+                text=f"On-Device: {display_value}",
+                foreground="gray"
+            ).pack(side="left", padx=10)
+            
     def _format_display_value(self, param_name, raw_value):
         """Convert raw parameter value to display format"""
         if raw_value is None:
