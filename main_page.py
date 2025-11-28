@@ -15,9 +15,17 @@ class Main(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("DCM Interface Demo")
-        self.geometry("700x700")
+        self.geometry("1000x1000")
         self.resizable(False, False)
-        
+
+        # Font size options
+        self.font_sizes = {
+            "normal": {"title": 16, "label": 10, "button": 10},
+            "medium": {"title": 20, "label": 12, "button": 12},
+            "large": {"title": 24, "label": 14, "button": 14}
+        }
+        self.current_font_size = "normal"
+
         # Pacemaker status indicator
         self.status_frame = tk.Frame(self)
         self.status_frame.pack(side="top", anchor="ne", padx=10, pady=10)
@@ -110,6 +118,28 @@ class Main(tk.Tk):
         monitor_thread = Thread(target=check, daemon=True)
         monitor_thread.start()
 
+    def apply_fonts(self, frame):
+        """Update all fonts inside a frame based on current size."""
+        sizes = self.font_sizes[self.current_font_size]
+
+        for widget in frame.winfo_children():
+            if isinstance(widget, (ttk.Label, tk.Label)):
+                widget.config(font=("Arial", sizes["label"]))
+            elif isinstance(widget, ttk.Button):
+                widget.config(style="TButton")
+            elif isinstance(widget, ttk.Entry):
+                widget.config(font=("Arial", sizes["label"]))
+
+            # Recursively update nested frames
+            if isinstance(widget, tk.Frame):
+                self.apply_fonts(widget)
+
+        # Create updated button style
+        style = ttk.Style()
+        style.configure("TButton", font=("Arial", sizes["button"]))
+
+
+
 class WelcomePage(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent)
@@ -137,6 +167,29 @@ class WelcomePage(tk.Frame):
 
         quit_btn = ttk.Button(self, text="Quit", command=controller.destroy)
         quit_btn.pack(pady=10)
+
+        # Font size selector
+        ttk.Label(self, text="Font Size").pack(pady=5)
+        self.font_select = ttk.Combobox(
+            self, values=["Normal", "Medium", "Large"], state="readonly"
+        )
+        self.font_select.current(0)
+        self.font_select.pack()
+
+        # Apply font size on change
+        self.font_select.bind("<<ComboboxSelected>>", self.change_font_size)
+
+        controller.apply_fonts(self)
+
+    def change_font_size(self, event):
+        size_map = {"Normal": "normal", "Medium": "medium", "Large": "large"}
+        selected = self.font_select.get()
+        self.controller.current_font_size = size_map[selected]
+
+        # Apply new font sizes to *all* pages
+        for frame in self.controller.frames.values():
+            self.controller.apply_fonts(frame)
+
 
     def login_user(self):
         username = self.username_entry.get().strip()
@@ -286,6 +339,7 @@ class ParameterPage(tk.Frame):
             # Byte 18: Recovery Time (2-16 minutes)
             'Recovery Time': 0
         }
+        controller.apply_fonts(self)
         
     def convert_display_to_raw(self, param_name, display_value):
         val = float(display_value)
@@ -382,6 +436,8 @@ class ParameterPage(tk.Frame):
                 anchor="w",
                 foreground="gray"
             ).pack(side="left", padx=5)
+        self.controller.apply_fonts(self.form_frame)
+
 
     def _format_display_value(self, param_name, raw_value):
         """Convert raw parameter value to display format"""
@@ -552,6 +608,8 @@ class ParameterPage(tk.Frame):
     def _refresh_display(self):
         """Refresh the parameter display with current values"""
         self.show_parameters()
+        self.controller.apply_fonts(self)
+
 
     def _update_parameters_from_response(self, response_bytes):
         """Update parameter manager and display from pacemaker response"""

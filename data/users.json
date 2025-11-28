@@ -77,5 +77,84 @@
                 "Recovery Time": 2
             }
         }
+    },
+    {
+        "username": "BacemLikesMen",
+        "password": "1",
+        "parameters": {
+            "AOO": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Atrial Amplitude": 0.5,
+                "Atrial Pulse Width": 0.05
+            },
+            "AAI": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Atrial Amplitude": 0.5,
+                "Atrial Pulse Width": 0.05,
+                "ARP": 150
+            },
+            "VOO": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Ventricular Amplitude": 0,
+                "Ventricular Pulse Width": 0.1
+            },
+            "VVI": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Ventricular Amplitude": 0,
+                "Ventricular Pulse Width": 0.1,
+                "VRP": 150
+            },
+            "AOOR": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Maximum Sensor Rate": 50,
+                "Atrial Amplitude": 0.5,
+                "Atrial Pulse Width": 0.05,
+                "Activity Threshold": "V-Low",
+                "Reaction Time": 10,
+                "Response Factor": 1,
+                "Recovery Time": 2
+            },
+            "VOOR": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Maximum Sensor Rate": 50,
+                "Ventricular Amplitude": 0,
+                "Ventricular Pulse Width": 0.1,
+                "Activity Threshold": "V-Low",
+                "Reaction Time": 10,
+                "Response Factor": 1,
+                "Recovery Time": 2
+            },
+            "AAIR": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Maximum Sensor Rate": 50,
+                "Atrial Amplitude": 0.5,
+                "Atrial Pulse Width": 0.05,
+                "Atrial Sensitivity": 0.25,
+                "ARP": 150,
+                "Activity Threshold": "V-Low",
+                "Reaction Time": 10,
+                "Response Factor": 1,
+                "Recovery Time": 2
+            },
+            "VVIR": {
+                "Lower Rate Limit": 30,
+                "Upper Rate Limit": 50,
+                "Maximum Sensor Rate": 50,
+                "Ventricular Amplitude": 0,
+                "Ventricular Pulse Width": 0.1,
+                "Ventricular Sensitivity": 0.25,
+                "Activity Threshold": "V-Low",
+                "Reaction Time": 10,
+                "Response Factor": 1,
+                "Recovery Time": 2
+            }
+        }
     }
 ]
