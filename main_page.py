@@ -33,6 +33,7 @@ class Main(tk.Tk):
         self.status_canvas.pack(side="left")
         self.status_label = ttk.Label(self.status_frame, text="Pacemaker Disconnected", font=("Arial", 10))
         self.status_label.pack(side="left", padx=5)
+        
 
         # Connection management - initialize FIRST
         self.pacemaker_connected = False
@@ -43,6 +44,8 @@ class Main(tk.Tk):
 
         # NOW set the initial status
         self.set_connection_status(self.pacemaker_connected)
+        self.apply_fonts(self)
+
 
         # Container for all frames
         container = tk.Frame(self)
@@ -189,7 +192,7 @@ class WelcomePage(tk.Frame):
         # Apply new font sizes to *all* pages
         for frame in self.controller.frames.values():
             self.controller.apply_fonts(frame)
-
+        self.controller.apply_fonts(self.controller)
 
     def login_user(self):
         username = self.username_entry.get().strip()
