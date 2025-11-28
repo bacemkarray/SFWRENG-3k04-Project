@@ -48,6 +48,8 @@ def generate_default_profile():
         profile[mode] = {}
         for param_name in param_list:
             profile[mode][param_name] = PARAMETER_RULES[param_name][0]
+            if param_name == "Activity Threshold":
+                profile[mode][param_name] = 0
     return profile
 
 

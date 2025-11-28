@@ -4,7 +4,6 @@ import user_db as user_db
 import parameters as parameters
 from threading import Thread
 import time
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import numpy as np
@@ -293,8 +292,7 @@ class ParameterPage(tk.Frame):
         button_frame = tk.Frame(self)
         button_frame.pack(pady=10)
         
-        self.upload_button = ttk.Button(button_frame, text="Upload to Pacemaker",
-                                command=self.upload_to_pacemaker)
+        self.upload_button = ttk.Button(button_frame, text="Upload to Pacemaker", command=self.upload_to_pacemaker)
         self.upload_button.pack(side="left", padx=5)
 
         self.show_params_button = ttk.Button(button_frame, text="Show Current Parameters", command=self.show_current_parameters)
@@ -366,13 +364,16 @@ class ParameterPage(tk.Frame):
 
         for param_name, entry in self.widgets.items():
             display_value = entry.get().strip()
-            raw_value = self.convert_display_to_raw(param_name, display_value)
+            if param_name == "Activity Threshold":
+                raw_value = parameters.ACTIVITY_MAP[display_value]
+            else:
+                raw_value = self.convert_display_to_raw(param_name, display_value)
+
+
 
 
             mode_dict[param_name] = raw_value
-
         profile[mode] = mode_dict
-
         user_db.save_user_profile(username, profile)
 
     def load_profile(self):
@@ -380,16 +381,12 @@ class ParameterPage(tk.Frame):
         mode = self.controller.current_mode
         profile = user_db.get_user_profile(username)
 
-        if not profile or mode not in profile:
-            self.upload_msg.config(text="No saved profile", foreground="red")
-            return
-
         mode_dict = profile[mode]
 
         for param_name, entry in self.widgets.items():
             if param_name in mode_dict:
                 raw = mode_dict[param_name]
-
+                
                 # convert raw -> display
                 if "Amplitude" in param_name:
                     display = raw / 10
@@ -397,11 +394,66 @@ class ParameterPage(tk.Frame):
                     display = raw / 10
                 elif param_name in ["ARP", "VRP"]:
                     display = raw * 10
+                elif param_name == "Activity Threshold":
+                    display = parameters.REVERSE_ACTIVITY_MAP[raw]
                 else:
                     display = raw
 
-                entry.delete(0, tk.END)
-                entry.insert(0, str(display))
+                if isinstance(entry, ttk.Combobox):
+                    entry.set(str(display))
+                else:
+                    entry.delete(0, tk.END)
+                    entry.insert(0, str(display))
+    
+    # Creates the dropdowns for each param
+    def create_dropdown(self, parent, param_name):
+        if param_name in ["Lower Rate Limit", "Upper Rate Limit", "Maximum Sensor Rate"]:
+            values = [x for x in range(30, 176, 5)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if "Amplitude" in param_name:
+            values = [round(x,1) for x in np.arange(0.1, 5.1, 0.1)]
+            # values = [x for x in range(0.1, 5.1, 0.1)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if "Pulse Width" in param_name:
+            values = [x for x in range(1, 31, 1)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if "Sensitivity" in param_name:
+            values = [round(x,1) for x in np.arange(0.0, 5.1, 0.1)]
+            # values = [x for x in range(0, 5.1, 0.1)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if param_name in ["ARP", "VRP"]:
+            values = [x for x in range(150, 510, 10)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if param_name == "Activity Threshold":
+            values = ["V-Low", "Low", "Med-Low", "Med", "Med-High", "High", "V-High"]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if param_name == "Reaction Time":
+            values = [x for x in range(10, 60, 10)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if param_name == "Response Factor":
+            values = [x for x in range(1, 17, 1)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
+        if param_name == "Recovery Time":
+            values = [x for x in range(2, 17, 1)]
+            cb = ttk.Combobox(parent, values=values, width=10, state="readonly")
+            cb.pack(side="left", padx=5)
+            return cb
 
     def show_parameters(self):
         # Clear
@@ -420,26 +472,11 @@ class ParameterPage(tk.Frame):
 
         for p in params:
             row = tk.Frame(self.form_frame)
-            row.pack(pady=2, fill="x")
+            row.pack(fill="x", pady=3)
 
-            ttk.Label(row, text=p, width=20, anchor="w").pack(side="left", padx=5)
-
-            entry = ttk.Entry(row, width=12)
-            entry.pack(side="left", padx=5)
+            ttk.Label(row, text=p).pack(side="left", padx=5)
+            entry = self.create_dropdown(row, p)
             self.widgets[p] = entry
-
-           # Use user profile as initial value
-            raw_value = mode_profile.get(p)
-            display_value = self._format_display_value(p, raw_value)
-            
-            ttk.Label(
-                row,
-                text=f"On-Device: {display_value}",
-                width=15,
-                anchor="w",
-                foreground="gray"
-            ).pack(side="left", padx=5)
-        self.controller.apply_fonts(self.form_frame)
 
 
     def _format_display_value(self, param_name, raw_value):
@@ -461,7 +498,6 @@ class ParameterPage(tk.Frame):
     def upload_to_pacemaker(self):
         # Collect parameters and update the parameter manager
         for param_name, entry in self.widgets.items():
-            # Cross-parameter rule: Upper >= Lower
             if 'Lower Rate Limit' in self.widgets and 'Upper Rate Limit' in self.widgets:
                 lrl = float(self.widgets['Lower Rate Limit'].get().strip())
                 url = float(self.widgets['Upper Rate Limit'].get().strip())
@@ -478,6 +514,10 @@ class ParameterPage(tk.Frame):
         # Collect parameters and update the parameter manager
         for param_name, entry in self.widgets.items():
             value = entry.get().strip()
+            if param_name == "Activity Threshold":
+                raw = parameters.ACTIVITY_MAP[value]
+                parameters.pacemaker_params.set_parameter("Activity Threshold", raw)
+                continue
             if not value:
                 self.upload_msg.config(text=f"Please enter value for {param_name}", foreground="red")
                 return
