@@ -35,14 +35,14 @@ def build_packet_echo():
         35,         # VENT_AMP
         4,          # ATR_PULSE_WIDTH
         4,          # VENT_PULSE_WIDTH
-        75,         # ATR_SENS
-        75,         # VENT_SENS
+        75,         # Atrial Sensitivity
+        75,         # Ventricular Sensitivity
         32,         # VRP
         25,         # ARP
-        10,         # ACTIVITY_THRESHOLD
-        30,         # REACTION_TIME
-        8,          # RESPONSE_FACTOR
-        5           # RECOVERY_TIME
+        10,         # Activity Threshold
+        30,         # Reaction Time
+        8,          # Response Factor
+        5           # Recovery Time
     ])
 
 # ---------------------------
@@ -60,14 +60,14 @@ def build_packet_set():
         35,         # VENT_AMP
         4,          # ATR_PULSE_WIDTH
         4,          # VENT_PULSE_WIDTH
-        75,         # ATR_SENS
-        75,         # VENT_SENS
+        75,         # Atrial Sensitivity
+        75,         # Ventricular Sensitivity
         32,         # VRP
         25,         # ARP
-        10,         # ACTIVITY_THRESHOLD
-        30,         # REACTION_TIME
-        8,          # RESPONSE_FACTOR
-        5           # RECOVERY_TIME
+        10,         # Activity Threshold
+        30,         # Reaction Time
+        8,          # Response Factor
+        5           # Recovery Time
     ])
 
 # ---------------------------
