@@ -1,5 +1,3 @@
-# parameters.py
-
 import serial
 import struct
 import time
@@ -21,7 +19,66 @@ PARAMETER_RULES = {
     "Ventricular Pulse Width": (0.1, 1.9),
     "Ventricular Sensitivity": (0.25, 10.0),
     "ARP": (150, 500),
-    "VRP": (150, 500)
+    "VRP": (150, 500),
+    # "Activity Threshold": ("V-Low", "Low", "Med-Low", "Med", "Med-High", "High", "V-High"),
+    "Reaction Time": (10, 50),
+    "Response Factor": (1, 16),
+    "Recovery Time": (2, 16)
+}
+
+MODE_PARAMETER_LAYOUT = {
+    "AOO": [
+        "Lower Rate Limit",
+        "Upper Rate Limit",
+        "Atrial Amplitude",
+        "Atrial Pulse Width"
+    ],
+    "AAI": [
+        "Lower Rate Limit",
+        "Upper Rate Limit",
+        "Atrial Amplitude",
+        "Atrial Pulse Width",
+        "ARP"
+    ],
+    "VOO": [
+        "Lower Rate Limit",
+        "Upper Rate Limit",
+        "Ventricular Amplitude",
+        "Ventricular Pulse Width"
+    ],
+    "VVI": [
+        "Lower Rate Limit",
+        "Upper Rate Limit",
+        "Ventricular Amplitude",
+        "Ventricular Pulse Width",
+        "VRP"
+    ],
+    "AOOR": [
+        "Lower Rate Limit", "Upper Rate Limit", "Maximum Sensor Rate",
+        "Atrial Amplitude", "Atrial Pulse Width",
+        "Activity Threshold", "Reaction Time",
+        "Response Factor", "Recovery Time"
+    ],
+    "VOOR": [
+        "Lower Rate Limit", "Upper Rate Limit", "Maximum Sensor Rate",
+        "Ventricular Amplitude", "Ventricular Pulse Width",
+        "Activity Threshold", "Reaction Time",
+        "Response Factor", "Recovery Time"
+    ],
+    "AAIR": [
+        "Lower Rate Limit", "Upper Rate Limit", "Maximum Sensor Rate",
+        "Atrial Amplitude", "Atrial Pulse Width",
+        "Atrial Sensitivity", "ARP",
+        "Activity Threshold", "Reaction Time",
+        "Response Factor", "Recovery Time"
+    ],
+    "VVIR": [
+        "Lower Rate Limit", "Upper Rate Limit", "Maximum Sensor Rate",
+        "Ventricular Amplitude", "Ventricular Pulse Width",
+        "Ventricular Sensitivity",
+        "Activity Threshold", "Reaction Time",
+        "Response Factor", "Recovery Time"
+    ]
 }
 
 # Mode mapping
@@ -244,10 +301,10 @@ class PacemakerParameters:
             'Ventricular Pulse Width': 10,  # 1.0ms
             
             # Byte 11: Atrial Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
-            'ATR_SENS': 50,  # 5.0mV
+            'Atrial Sensitivity': 50,  # 5.0mV
             
             # Byte 12: Ventricular Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
-            'VENT_SENS': 50,  # 5.0mV
+            'Ventricular Sensitivity': 50,  # 5.0mV
             
             # Byte 13: VRP (15-50 = 150-500ms when multiplied by 10)
             'VRP': 25,  # 250ms
@@ -256,16 +313,16 @@ class PacemakerParameters:
             'ARP': 25,  # 250ms
             
             # Byte 15: Activity Threshold (0-255, unclear range)
-            'ACTIVITY_THRESHOLD': 10,
+            'Activity Threshold': 10,
             
             # Byte 16: Reaction Time (10-50 seconds)
-            'REACTION_TIME': 30,
+            'Reaction Time': 30,
             
             # Byte 17: Response Factor (1-16)
-            'RESPONSE_FACTOR': 8,
+            'Response Factor': 8,
             
             # Byte 18: Recovery Time (2-16 minutes)
-            'RECOVERY_TIME': 5
+            'Recovery Time': 5
         }
         
         # Mode mapping for user-friendly names
@@ -304,14 +361,14 @@ class PacemakerParameters:
             'Ventricular Amplitude': (0, 50),
             'Atrial Pulse Width': (1, 19),
             'Ventricular Pulse Width': (1, 19),
-            'ATR_SENS': (10, 100),
-            'VENT_SENS': (10, 100),
+            'Atrial Sensitivity': (10, 100),
+            'Ventricular Sensitivity': (10, 100),
             'VRP': (15, 50),
             'ARP': (15, 50),
-            'ACTIVITY_THRESHOLD': (0, 255),
-            'REACTION_TIME': (10, 50),
-            'RESPONSE_FACTOR': (1, 16),
-            'RECOVERY_TIME': (2, 16)
+            'Activity Threshold': (0, 255),
+            'Reaction Time': (10, 50),
+            'Response Factor': (1, 16),
+            'Recovery Time': (2, 16)
         }
         
         min_val, max_val = validation_rules.get(param_name, (0, 255))
@@ -340,8 +397,8 @@ class PacemakerParameters:
         
         try:
             # Based on your received data, the pacemaker returns parameters in this order:
-            # [Mode, LRL, URL, MSR, ATR_AMP, VENT_AMP, ATR_PW, VENT_PW, ATR_SENS, VENT_SENS, VRP, ARP, 
-            #  ACTIVITY_THRESHOLD, REACTION_TIME, RESPONSE_FACTOR, RECOVERY_TIME, ?, ?]
+            # [Mode, LRL, URL, MSR, ATR_AMP, VENT_AMP, ATR_PW, VENT_PW, Atrial Sensitivity, Ventricular Sensitivity, VRP, ARP, 
+            #  Activity Threshold, Reaction Time, Response Factor, Recovery Time, ?, ?]
             
             # Map bytes to parameters based on the actual response order
             self.parameters['Mode'] = data_bytes[0]
@@ -352,14 +409,14 @@ class PacemakerParameters:
             self.parameters['Ventricular Amplitude'] = data_bytes[5]
             self.parameters['Atrial Pulse Width'] = data_bytes[6]
             self.parameters['Ventricular Pulse Width'] = data_bytes[7]
-            self.parameters['ATR_SENS'] = data_bytes[8]
-            self.parameters['VENT_SENS'] = data_bytes[9]
+            self.parameters['Atrial Sensitivity'] = data_bytes[8]
+            self.parameters['Ventricular Sensitivity'] = data_bytes[9]
             self.parameters['VRP'] = data_bytes[10]
             self.parameters['ARP'] = data_bytes[11]
-            self.parameters['ACTIVITY_THRESHOLD'] = data_bytes[12]
-            self.parameters['REACTION_TIME'] = data_bytes[13]
-            self.parameters['RESPONSE_FACTOR'] = data_bytes[14]
-            self.parameters['RECOVERY_TIME'] = data_bytes[15]
+            self.parameters['Activity Threshold'] = data_bytes[12]
+            self.parameters['Reaction Time'] = data_bytes[13]
+            self.parameters['Response Factor'] = data_bytes[14]
+            self.parameters['Recovery Time'] = data_bytes[15]
             # Bytes 16 and 17 seem to be unknown/extra bytes in the response
             
             print("All parameters updated successfully from byte data")
@@ -428,14 +485,14 @@ class PacemakerParameters:
         byte_array[7] = self.parameters['Ventricular Amplitude']
         byte_array[8] = self.parameters['Atrial Pulse Width']
         byte_array[9] = self.parameters['Ventricular Pulse Width']
-        byte_array[10] = self.parameters['ATR_SENS']
-        byte_array[11] = self.parameters['VENT_SENS']
+        byte_array[10] = self.parameters['Atrial Sensitivity']
+        byte_array[11] = self.parameters['Ventricular Sensitivity']
         byte_array[12] = self.parameters['VRP']
         byte_array[13] = self.parameters['ARP']
-        byte_array[14] = self.parameters['ACTIVITY_THRESHOLD']
-        byte_array[15] = self.parameters['REACTION_TIME']
-        byte_array[16] = self.parameters['RESPONSE_FACTOR']
-        byte_array[17] = self.parameters['RECOVERY_TIME']
+        byte_array[14] = self.parameters['Activity Threshold']
+        byte_array[15] = self.parameters['Reaction Time']
+        byte_array[16] = self.parameters['Response Factor']
+        byte_array[17] = self.parameters['Recovery Time']
         
         return bytes(byte_array)
 
@@ -449,6 +506,8 @@ class PacemakerParameters:
         self.parameters['FnCode'] = 0x55
         print("Set to parameter mode (0x55)")
 
+
+    # DELETE THESE LATERLOL
     def print_parameters(self):
         """Print all current parameters in a formatted way"""
         print("\n" + "="*50)
@@ -480,8 +539,8 @@ class PacemakerParameters:
         
         # Sensitivity parameters (with converted values)
         print("SENSITIVITIES:")
-        print(f"  Atrial: {self.parameters['ATR_SENS']/10:.1f}mV (raw: {self.parameters['ATR_SENS']})")
-        print(f"  Ventricular: {self.parameters['VENT_SENS']/10:.1f}mV (raw: {self.parameters['VENT_SENS']})")
+        print(f"  Atrial: {self.parameters['Atrial Sensitivity']/10:.1f}mV (raw: {self.parameters['Atrial Sensitivity']})")
+        print(f"  Ventricular: {self.parameters['Ventricular Sensitivity']/10:.1f}mV (raw: {self.parameters['Ventricular Sensitivity']})")
         print()
         
         # Refractory periods (with converted values)
@@ -492,10 +551,10 @@ class PacemakerParameters:
         
         # Sensor parameters
         print("SENSOR PARAMETERS:")
-        print(f"  Activity Threshold: {self.parameters['ACTIVITY_THRESHOLD']}")
-        print(f"  Reaction Time: {self.parameters['REACTION_TIME']}s")
-        print(f"  Response Factor: {self.parameters['RESPONSE_FACTOR']}")
-        print(f"  Recovery Time: {self.parameters['RECOVERY_TIME']}min")
+        print(f"Activity Threshold: {self.parameters['Activity Threshold']}")
+        print(f"Reaction Time: {self.parameters['Reaction Time']}s")
+        print(f"Response Factor: {self.parameters['Response Factor']}")
+        print(f"Recovery Time: {self.parameters['Recovery Time']}min")
         
         print("="*50)
 
@@ -509,8 +568,8 @@ class PacemakerParameters:
         param_order = [
             'SYNC', 'FnCode', 'Mode', 'Lower Rate Limit', 'Upper Rate Limit', 'MSR',
             'Atrial Amplitude', 'Ventricular Amplitude', 'Atrial Pulse Width', 'Ventricular Pulse Width',
-            'ATR_SENS', 'VENT_SENS', 'VRP', 'ARP', 
-            'ACTIVITY_THRESHOLD', 'REACTION_TIME', 'RESPONSE_FACTOR', 'RECOVERY_TIME'
+            'Atrial Sensitivity', 'Ventricular Sensitivity', 'VRP', 'ARP', 
+            'Activity Threshold', 'Reaction Time', 'Response Factor', 'Recovery Time'
         ]
         
         return [self.parameters[param] for param in param_order]
