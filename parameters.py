@@ -5,6 +5,8 @@ import struct
 import time
 from typing import Tuple
 
+PORT = 'COM3'
+BAUD = 115200
 PARAMETER_RULES = {
     "Lower Rate Limit": (30, 175),
     "Upper Rate Limit": (50, 175),
@@ -44,7 +46,7 @@ def validate_param(param_name, value):
     return True, ""
 
 class PacemakerCommunicator:
-    def __init__(self, port='COM3', baudrate=115200):
+    def __init__(self, port=PORT, baudrate=BAUD):
         self.port = port
         self.baudrate = baudrate
         self.ser = None

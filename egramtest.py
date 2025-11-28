@@ -1,16 +1,16 @@
 import serial
 import time
-
+PORT = 'COM3'
+BAUD = 115200
 def read_raw_bit_stream():
-    PORT = 'COM5'
-    BAUD = 115200
+    
     
     try:
         ser = serial.Serial(PORT, BAUD, timeout=1)
         time.sleep(2)
         ser.reset_input_buffer()
         
-        print("📡 Reading RAW BIT STREAM from COM5...")
+        print("Reading RAW BIT STREAM from COM5...")
         print("Press Ctrl+C to stop\n")
         print("BIT STREAM:")
         
@@ -49,7 +49,7 @@ def read_raw_bit_stream():
 
 # EVEN RAWER - continuous stream with no formatting
 def continuous_bit_stream():
-    ser = serial.Serial('COM5', 115200, timeout=1)
+    ser = serial.Serial(PORT, BAUD, timeout=1)
     time.sleep(2)
     ser.reset_input_buffer()
     
@@ -69,7 +69,7 @@ def continuous_bit_stream():
 
 # With timing visualization
 def bit_stream_with_timing():
-    ser = serial.Serial('COM5', 115200, timeout=1)
+    ser = serial.Serial(PORT, BAUD, timeout=1)
     time.sleep(2)
     ser.reset_input_buffer()
     
@@ -92,7 +92,7 @@ def bit_stream_with_timing():
     finally:
         ser.close()
 def data():
-    ser = serial.Serial('COM5', 115200, timeout=1)
+    ser = serial.Serial(PORT, BAUD, timeout=1)
     time.sleep(2)
     ser.reset_input_buffer()
 
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     elif choice == "2":
         continuous_bit_stream()
     elif choice == "3":
-        bit_stream_with_timing()
+        bit_stream_with_timing(PORT)
     else:
         print("Running raw bit stream...")
         read_raw_bit_stream()
