@@ -1,5 +1,6 @@
 import json
 
+from parameters import PARAMETER_RULES, MODE_PARAMETER_LAYOUT
 
 def load_users():
     with open("data/users.json", "r") as f:
@@ -25,12 +26,13 @@ def register_user(username, password):
 
     data.append({
         "username": username, 
-        "password": password
+        "password": password,
+        "parameters": generate_default_profile(),
         })
     save_users(data)    
     return True
 
-
+# check that username and password are the same
 def check_login(username, password):
     data = load_users()
     for user in data:
@@ -38,4 +40,39 @@ def check_login(username, password):
             return True
     return False
 
-register_user("Bacem", "1234")
+
+# populate a profile with default values
+def generate_default_profile():
+    profile = {}
+    for mode, param_list in MODE_PARAMETER_LAYOUT.items():
+        profile[mode] = {}
+        for param_name in param_list:
+            profile[mode][param_name] = PARAMETER_RULES[param_name][0]
+    return profile
+
+
+def get_user(username):
+    data = load_users()
+    for user in data:
+        if user["username"] == username:
+            return user
+    return None
+
+
+def save_user_profile(username, params):
+    data = load_users()
+    for user in data:
+        if user["username"] == username:
+            user["parameters"] = params
+            save_users(data)
+            return True
+    return False
+
+
+def get_user_profile(username):
+    user = get_user(username)
+    if user is None:
+        return None
+    return user.get("parameters", None)
+
+

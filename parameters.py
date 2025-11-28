@@ -5,6 +5,7 @@ from typing import Tuple
 
 PORT = 'COM3'
 BAUD = 115200
+
 PARAMETER_RULES = {
     "Lower Rate Limit": (30, 175),
     "Upper Rate Limit": (50, 175),
@@ -20,7 +21,7 @@ PARAMETER_RULES = {
     "Ventricular Sensitivity": (0.25, 10.0),
     "ARP": (150, 500),
     "VRP": (150, 500),
-    # "Activity Threshold": ("V-Low", "Low", "Med-Low", "Med", "Med-High", "High", "V-High"),
+    "Activity Threshold": ("V-Low", "Low", "Med-Low", "Med", "Med-High", "High", "V-High"),
     "Reaction Time": (10, 50),
     "Response Factor": (1, 16),
     "Recovery Time": (2, 16)
