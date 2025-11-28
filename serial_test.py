@@ -70,6 +70,12 @@ def build_packet_set():
         5           # Recovery Time
     ])
 
+def build_egram_echo():
+    return bytearray([
+        0x16,
+        0x43
+    ])
+
 # ---------------------------
 # Main loop
 # ---------------------------
@@ -89,13 +95,18 @@ try:
             print("Echo packet sent to pacemaker!")
             time.sleep(0.3)  # small delay to avoid multiple sends on a single key press
         
-        # 2) Check for key press to send set packet
         if keyboard.is_pressed('s'):  # Press 's' to send
             packet = build_packet_set()
             ser.write(packet)
             print("Set packet sent to pacemaker!")
             time.sleep(0.3)  # small delay to avoid multiple sends on a single key press
 
+        
+        if keyboard.is_pressed('a'):  # Press 'a' to send
+            packet = build_egram_echo()
+            ser.write(packet)
+            print("egram packet sent to pacemaker!")
+            time.sleep(0.3)  # small delay to avoid multiple sends on a single key press
         # Small delay to avoid CPU overuse
         time.sleep(0.05)
 
