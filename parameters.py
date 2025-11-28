@@ -11,14 +11,12 @@ PARAMETER_RULES = {
     "Upper Rate Limit": (50, 175),
     "Maximum Sensor Rate": (50, 175),
     "Fixed AV Delay": (70, 300),
-    "Atrial Amplitude": (0, 5),
-    "Atrial Pulse Width": (0.1, 1.9),
-    "Atrial Amplitude": (0.5, 5.0),
-    "Atrial Pulse Width": (0.05, 1.9),
-    "Atrial Sensitivity": (0.25, 10.0),
-    "Ventricular Amplitude": (0, 5),
-    "Ventricular Pulse Width": (0.1, 1.9),
-    "Ventricular Sensitivity": (0.25, 10.0),
+    "Atrial Amplitude": (0.1, 5),
+    "Atrial Pulse Width": (1, 30),
+    "Atrial Sensitivity": (0, 5),
+    "Ventricular Amplitude": (0.1, 5),
+    "Ventricular Pulse Width": (1, 30),
+    "Ventricular Sensitivity": (0, 5),
     "ARP": (150, 500),
     "VRP": (150, 500),
     "Activity Threshold": ("V-Low", "Low", "Med-Low", "Med", "Med-High", "High", "V-High"),
@@ -82,12 +80,27 @@ MODE_PARAMETER_LAYOUT = {
     ]
 }
 
+ACTIVITY_MAP = {
+    "V-Low": 0,
+    "Low": 1,
+    "Med-Low": 2,
+    "Med": 3,
+    "Med-High": 4,
+    "High": 5,
+    "V-High": 6
+}
+REVERSE_ACTIVITY_MAP = {v: k for k, v in ACTIVITY_MAP.items()}
+
 # Mode mapping
 MODE_MAP = {
-    "AOO": 5,
-    "AAI": 6, 
-    "VOO": 7,
-    "VVI": 8
+    "AOO": 1,
+    "AAI": 2, 
+    "VOO": 3,
+    "VVI": 4,
+    "AOOR": 5,
+    "VOOR": 6,
+    "AAIR": 7,
+    "VVIR": 8
 }
 
 def validate_param(param_name, value):
