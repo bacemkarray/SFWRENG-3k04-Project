@@ -95,8 +95,9 @@ class Main(tk.Tk):
             parameters.pacemaker_comm.disconnect()
             self.set_connection_status(False)
     
+    
+    # continuously check connection status and attempt to reconnect if disconnected
     def monitor_connection(self):
-        """Continuously check connection status and attempt to reconnect if disconnected"""
         def check():
             while True:
                 try:
@@ -120,8 +121,8 @@ class Main(tk.Tk):
         monitor_thread = Thread(target=check, daemon=True)
         monitor_thread.start()
 
+    #Update all fonts inside a frame based on current size
     def apply_fonts(self, frame):
-        """Update all fonts inside a frame based on current size."""
         sizes = self.font_sizes[self.current_font_size]
 
         for widget in frame.winfo_children():
@@ -304,7 +305,7 @@ class ParameterPage(tk.Frame):
 
         controller.apply_fonts(self)
         
-        
+    # save data to profile
     def save_profile(self):
         username = self.controller.current_user
         mode = self.controller.current_mode
@@ -322,6 +323,7 @@ class ParameterPage(tk.Frame):
             profile[mode] = mode_dict
             user_db.save_user_profile(username, profile)
 
+    # save data to profile
     def load_profile(self):
         username = self.controller.current_user
         mode = self.controller.current_mode
