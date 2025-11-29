@@ -183,16 +183,16 @@ class PacemakerCommunicator:
             
             # Create parameter packet
             param_data = struct.pack("=BHHHffffHH",
-                mode_code,          # 1 byte - mode
-                lrl,                # 2 bytes - lower rate limit
-                url,                # 2 bytes - upper rate limit  
-                120,                # 2 bytes - max sensor rate (default)
-                atrial_amp,         # 4 bytes - atrial amplitude
-                ventricular_amp,    # 4 bytes - ventricular amplitude  
-                atrial_pw,          # 4 bytes - atrial pulse width
-                ventricular_pw,     # 4 bytes - ventricular pulse width
-                arp,                # 2 bytes - ARP
-                vrp                 # 2 bytes - VRP
+                mode_code, # 1 byte - mode
+                lrl, # 2 bytes - lower rate limit
+                url, # 2 bytes - upper rate limit  
+                120, # 2 bytes - max sensor rate (default)
+                atrial_amp, # 4 bytes - atrial amplitude
+                ventricular_amp, # 4 bytes - ventricular amplitude  
+                atrial_pw, # 4 bytes - atrial pulse width
+                ventricular_pw, # 4 bytes - ventricular pulse width
+                arp, # 2 bytes - ARP
+                vrp # 2 bytes - VRP
             )
             
             # Send command (0x01 for parameters)
@@ -519,74 +519,6 @@ class PacemakerParameters:
         """Set function code to parameter mode (send parameters to pacemaker)"""
         self.parameters['FnCode'] = 0x55
         print("Set to parameter mode (0x55)")
-
-
-    # DELETE THESE LATERLOL
-    def print_parameters(self):
-        """Print all current parameters in a formatted way"""
-        print("\n" + "="*50)
-        print("CURRENT PACEMAKER PARAMETERS")
-        print("="*50)
-        
-        print(f"Mode: {self.get_mode_name()} (Code: {self.parameters['Mode']})")
-        print(f"Function: {'Echo (0x22)' if self.parameters['FnCode'] == 0x22 else 'Set Parameters (0x55)'}")
-        print()
-        
-        # Rate parameters
-        print("RATES:")
-        print(f"  Lower Rate Limit: {self.parameters['Lower Rate Limit']} ppm")
-        print(f"  Upper Rate Limit: {self.parameters['Upper Rate Limit']} ppm")
-        print(f"  Maximum Sensor Rate: {self.parameters['MSR']} ppm")
-        print()
-        
-        # Amplitude parameters (with converted values)
-        print("AMPLITUDES:")
-        print(f"  Atrial: {self.parameters['Atrial Amplitude']/10:.1f}V (raw: {self.parameters['Atrial Amplitude']})")
-        print(f"  Ventricular: {self.parameters['Ventricular Amplitude']/10:.1f}V (raw: {self.parameters['Ventricular Amplitude']})")
-        print()
-        
-        # Pulse Width parameters (with converted values)
-        print("PULSE WIDTHS:")
-        print(f"  Atrial: {self.parameters['Atrial Pulse Width']/10:.1f}ms (raw: {self.parameters['Atrial Pulse Width']})")
-        print(f"  Ventricular: {self.parameters['Ventricular Pulse Width']/10:.1f}ms (raw: {self.parameters['Ventricular Pulse Width']})")
-        print()
-        
-        # Sensitivity parameters (with converted values)
-        print("SENSITIVITIES:")
-        print(f"  Atrial: {self.parameters['Atrial Sensitivity']/10:.1f}mV (raw: {self.parameters['Atrial Sensitivity']})")
-        print(f"  Ventricular: {self.parameters['Ventricular Sensitivity']/10:.1f}mV (raw: {self.parameters['Ventricular Sensitivity']})")
-        print()
-        
-        # Refractory periods (with converted values)
-        print("REFRACTORY PERIODS:")
-        print(f"  ARP: {self.parameters['ARP']*10}ms (raw: {self.parameters['ARP']})")
-        print(f"  VRP: {self.parameters['VRP']*10}ms (raw: {self.parameters['VRP']})")
-        print()
-        
-        # Sensor parameters
-        print("SENSOR PARAMETERS:")
-        print(f"Activity Threshold: {self.parameters['Activity Threshold']}")
-        print(f"Reaction Time: {self.parameters['Reaction Time']}s")
-        print(f"Response Factor: {self.parameters['Response Factor']}")
-        print(f"Recovery Time: {self.parameters['Recovery Time']}min")
-        
-        print("="*50)
-
-    def get_parameter_summary(self) -> list:
-        """
-        Get a list of parameter values in specific order
-        
-        Returns:
-            list: Parameter values in byte order
-        """
-        param_order = [
-            'SYNC', 'FnCode', 'Mode', 'Lower Rate Limit', 'Upper Rate Limit', 'MSR',
-            'Atrial Amplitude', 'Ventricular Amplitude', 'Atrial Pulse Width', 'Ventricular Pulse Width',
-            'Atrial Sensitivity', 'Ventricular Sensitivity', 'VRP', 'ARP', 
-            'Activity Threshold', 'Reaction Time', 'Response Factor', 'Recovery Time'
-        ]
-        
-        return [self.parameters[param] for param in param_order]
 
 # Create global instances
 pacemaker_comm = PacemakerCommunicator()
