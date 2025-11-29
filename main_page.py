@@ -302,57 +302,8 @@ class ParameterPage(tk.Frame):
         self.load_profile_button = ttk.Button(button_frame,text="Fetch From Profile", command=self.load_profile)
         self.load_profile_button.pack(side="left", padx=5)
 
-        self.measured_params = {
-            # Byte 1: Always 0x16 (SYNC)
-            'SYNC': 0,
-            # Byte 2: Function Code (0x55 for set parameters, 0x22 for echo)
-            'FnCode': 0,
-            # Byte 3: Mode (1-8)
-            'Mode': 0,  # Default to AOO
-            # Byte 4: Lower Rate Limit (30-175 ppm)
-            'Lower Rate Limit': 0,
-            # Byte 5: Upper Rate Limit (50-175 ppm)
-            'Upper Rate Limit': 0,
-            # Byte 6: Maximum Sensor Rate (50-175 ppm)
-            'MSR': 0,
-            # Byte 7: Atrial Amplitude (0-50 = 0-5.0V when divided by 10)
-            'Atrial Amplitude': 0,  # 2.5V
-            # Byte 8: Ventricular Amplitude (0-50 = 0-5.0V when divided by 10)
-            'Ventricular Amplitude': 0,  # 2.5V
-            # Byte 9: Atrial Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
-            'Atrial Pulse Width': 0,  # 1.0ms
-            # Byte 10: Ventricular Pulse Width (1-19 = 0.1-1.9ms when divided by 10)
-            'Ventricular Pulse Width': 0,  # 1.0ms
-            # Byte 11: Atrial Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
-            'Atrial Sensitivity': 0,  # 5.0mV
-            # Byte 12: Ventricular Sensitivity (10-100 = 1.0-10.0mV when divided by 10)
-            'Ventricular Sensitivity': 0,  # 5.0mV
-            # Byte 13: VRP (15-50 = 150-500ms when multiplied by 10)
-            'VRP': 0,  # 250ms
-            # Byte 14: ARP (15-50 = 150-500ms when multiplied by 10)
-            'ARP': 0,  # 250ms
-            # Byte 15: Activity Threshold (0-255, unclear range)
-            'Activity Threshold': 0,
-            # Byte 16: Reaction Time (10-50 seconds)
-            'Reaction Time': 0,
-            # Byte 17: Response Factor (1-16)
-            'Response Factor': 0,
-            # Byte 18: Recovery Time (2-16 minutes)
-            'Recovery Time': 0
-        }
         controller.apply_fonts(self)
         
-    def convert_display_to_raw(self, param_name, display_value):
-        val = float(display_value)
-
-        if "Amplitude" in param_name:
-            return int(val * 10)
-        if "Pulse Width" in param_name:
-            return int(val * 10)
-        if param_name in ["ARP", "VRP"]:
-            return int(val / 10)
-        else:
-            return int(val)
         
     def save_profile(self):
         username = self.controller.current_user
@@ -365,16 +316,11 @@ class ParameterPage(tk.Frame):
         for param_name, entry in self.widgets.items():
             display_value = entry.get().strip()
             if param_name == "Activity Threshold":
-                raw_value = parameters.ACTIVITY_MAP[display_value]
-            else:
-                raw_value = self.convert_display_to_raw(param_name, display_value)
+                display_value = parameters.ACTIVITY_MAP[display_value]
 
-
-
-
-            mode_dict[param_name] = raw_value
-        profile[mode] = mode_dict
-        user_db.save_user_profile(username, profile)
+            mode_dict[param_name] = display_value
+            profile[mode] = mode_dict
+            user_db.save_user_profile(username, profile)
 
     def load_profile(self):
         username = self.controller.current_user
@@ -385,12 +331,10 @@ class ParameterPage(tk.Frame):
 
         for param_name, entry in self.widgets.items():
             if param_name in mode_dict:
-                raw = mode_dict[param_name]
-                
+                display = mode_dict[param_name]
+                # convert value from number back to string (e.g "V-Low")
                 if param_name == "Activity Threshold":
-                    display = parameters.REVERSE_ACTIVITY_MAP[raw]
-                else:
-                    display = raw
+                    display = parameters.REVERSE_ACTIVITY_MAP[display]
 
                 if isinstance(entry, ttk.Combobox):
                     entry.set(str(display))
@@ -448,23 +392,20 @@ class ParameterPage(tk.Frame):
             cb.pack(side="left", padx=5)
             return cb
 
+    # Show the parameters for the given mode
     def show_parameters(self):
         # Clear
         for widget in self.form_frame.winfo_children():
             widget.destroy()
         self.widgets.clear()
 
-        username = self.controller.current_user
-        profile = user_db.get_user_profile(username)
         mode = self.controller.current_mode
-        mode_profile = profile.get(mode, {})
-
         self.title.config(text=f"{mode} Parameters")
 
         params = parameters.MODE_PARAMETER_LAYOUT.get(mode, [])
 
         for p in params:
-            
+        
             row = tk.Frame(self.form_frame)
             row.pack(fill="x", pady=3)
 
@@ -478,19 +419,15 @@ class ParameterPage(tk.Frame):
                 display_value = "—"
             else:
                 raw_value = parameters.pacemaker_params.get_parameter(p)
-                display_value = self._format_display_value(p, raw_value)
+                display_value = self.format_display_value(p, raw_value)
 
-            ttk.Label(
-                row,
-                text=f"On-Device: {display_value}",
-                foreground="gray"
-            ).pack(side="left", padx=10)
+            ttk.Label(row, text=f"On-Device: {display_value}", foreground="gray").pack(side="left", padx=10)
             
-    def _format_display_value(self, param_name, raw_value):
-        """Convert raw parameter value to display format"""
+
+    # convert raw parameter value to display format
+    def format_display_value(self, param_name, raw_value):
         if raw_value is None:
             return "N/A"
-        
         if "Amplitude" in param_name:
             return f"{raw_value/10:.1f}V"
         elif "Pulse Width" in param_name:
@@ -502,8 +439,8 @@ class ParameterPage(tk.Frame):
         else:
             return str(raw_value)
 
+    # upload data to pacemaker
     def upload_to_pacemaker(self):
-        # Collect parameters and update the parameter manager
         for param_name, entry in self.widgets.items():
             if 'Lower Rate Limit' in self.widgets and 'Upper Rate Limit' in self.widgets:
                 lrl = float(self.widgets['Lower Rate Limit'].get().strip())
@@ -518,7 +455,6 @@ class ParameterPage(tk.Frame):
             self.upload_msg.config(text="Cannot upload - Pacemaker not connected", foreground="red")
             return
         
-        # Collect parameters and update the parameter manager
         for param_name, entry in self.widgets.items():
             value = entry.get().strip()
             if param_name == "Activity Threshold":
@@ -529,47 +465,43 @@ class ParameterPage(tk.Frame):
                 self.upload_msg.config(text=f"Please enter value for {param_name}", foreground="red")
                 return
             
-            # Validate the parameter
+            # validate the parameter
             valid, msg = parameters.validate_param(param_name, value)
             if not valid:
                 self.upload_msg.config(text=msg, foreground="red")
                 return
             
-            # Convert to appropriate format and set in parameter manager
-            try:
-                if param_name in ["Lower Rate Limit", "Upper Rate Limit", "ARP", "VRP"]:
-                    # These are integer values
-                    int_value = int(float(value))
-                    if param_name == "Lower Rate Limit":
-                        parameters.pacemaker_params.set_parameter('Lower Rate Limit', int_value)
-                    elif param_name == "Upper Rate Limit":
-                        parameters.pacemaker_params.set_parameter('Upper Rate Limit', int_value)
-                    elif param_name == "ARP":
-                        parameters.pacemaker_params.set_parameter('ARP', int_value // 10)  # Convert to raw value
-                    elif param_name == "VRP":
-                        parameters.pacemaker_params.set_parameter('VRP', int_value // 10)  # Convert to raw value
-                
-                elif "Amplitude" in param_name:
-                    # Convert voltage to raw value (multiply by 10)
-                    raw_value = int(float(value) * 10)
-                    if "Atrial" in param_name:
-                        parameters.pacemaker_params.set_parameter('Atrial Amplitude', raw_value)
-                    else:
-                        parameters.pacemaker_params.set_parameter('Ventricular Amplitude', raw_value)
-                
-                elif "Pulse Width" in param_name:
-                    # Convert ms to raw value (multiply by 10)
-                    raw_value = int(float(value) * 10)
-                    if "Atrial" in param_name:
-                        parameters.pacemaker_params.set_parameter('Atrial Pulse Width', raw_value)
-                    else:
-                        parameters.pacemaker_params.set_parameter('Ventricular Pulse Width', raw_value)
+            # convert to appropriate format and set in parameter manager
+            if param_name in ["Lower Rate Limit", "Upper Rate Limit", "ARP", "VRP"]:
+                # These are integer values
+                int_value = int(value)
+                if param_name == "Lower Rate Limit":
+                    parameters.pacemaker_params.set_parameter('Lower Rate Limit', int_value)
+                elif param_name == "Upper Rate Limit":
+                    parameters.pacemaker_params.set_parameter('Upper Rate Limit', int_value)
+                elif param_name == "ARP":
+                    parameters.pacemaker_params.set_parameter('ARP', int_value // 10)  # convert to raw value
+                elif param_name == "VRP":
+                    parameters.pacemaker_params.set_parameter('VRP', int_value // 10)  # convert to raw value
+            
+            elif "Amplitude" in param_name:
+                # Convert voltage to raw value
+                raw_value = int(value * 10)
+                if "Atrial" in param_name:
+                    parameters.pacemaker_params.set_parameter('Atrial Amplitude', raw_value)
+                else:
+                    parameters.pacemaker_params.set_parameter('Ventricular Amplitude', raw_value)
+            
+            elif "Pulse Width" in param_name:
+                # convert ms to raw value
+                raw_value = int(value * 10)
+                if "Atrial" in param_name:
+                    parameters.pacemaker_params.set_parameter('Atrial Pulse Width', raw_value)
+                else:
+                    parameters.pacemaker_params.set_parameter('Ventricular Pulse Width', raw_value)
                         
-            except ValueError:
-                self.upload_msg.config(text=f"Invalid value for {param_name}", foreground="red")
-                return
         
-        # Get the parameter bytes and send to pacemaker
+        # get the parameter bytes and send to pacemaker
         try:
             param_bytes = parameters.pacemaker_params.get_parameter_bytes()
             
@@ -586,19 +518,19 @@ class ParameterPage(tk.Frame):
         except Exception as e:
             self.upload_msg.config(text=f"Error: {str(e)}", foreground="red")
 
+
+    # fetch then display params 
     def show_current_parameters(self):
-        """Fetch and display current parameters from the pacemaker"""
         if not self.controller.pacemaker_connected:
             self.upload_msg.config(text="Cannot fetch parameters - Pacemaker not connected", foreground="red")
             return
         
         self.upload_msg.config(text="Requesting parameters from pacemaker...", foreground="blue")
-        
+        Thread(target=self.fetch_parameters_thread, daemon=True).start()
 
-        Thread(target=self._fetch_parameters_thread, daemon=True).start()
 
-    def _fetch_parameters_thread(self):
-        """Thread function to fetch parameters from pacemaker"""
+    # Fetch params from pacemaker
+    def fetch_parameters_thread(self):
         try:
             # Clear the serial buffer first
             if parameters.pacemaker_comm.ser.in_waiting > 0:
@@ -612,8 +544,8 @@ class ParameterPage(tk.Frame):
             success = parameters.pacemaker_comm.send_raw_parameters(echo_bytes)
             
             if success:
-                # Wait longer for response and read available data
-                time.sleep(2)  # Increased from 1 second
+                # Wait for response and read available data
+                time.sleep(2) 
                 
                 # Read response from pacemaker
                 if parameters.pacemaker_comm.ser.in_waiting >= 18:
@@ -623,16 +555,16 @@ class ParameterPage(tk.Frame):
                     for i, byte in enumerate(response):
                         print(f"  Byte {i}: {byte} (0x{byte:02x})")
                     
-                    # Update the parameters from the response
-                    self._update_parameters_from_response(response)
+                    # update the parameters from the response
+                    self.update_parameters_from_response(response)
                     
-                    # Refresh the display in main thread
-                    self.after(0, self._refresh_display)
+                    # refresh the display in main thread
+                    self.after(0, self.refresh_display)
                     
-                    # Switch back to parameter mode for future uploads
+                    # switch back to parameter mode for future uploads
                     parameters.pacemaker_params.set_parameter_mode()
                     
-                    # Update GUI in main thread
+                    # update GUI in main thread
                     self.after(0, lambda: self.upload_msg.config(
                         text="Successfully fetched parameters from pacemaker", 
                         foreground="green"
@@ -650,18 +582,11 @@ class ParameterPage(tk.Frame):
                 ))
                 
         except Exception as e:
-            self.after(0, lambda: self.upload_msg.config(
-                text=f"Error fetching parameters: {str(e)}", 
-                foreground="red"
-            ))
-
-    def _refresh_display(self):
-        """Refresh the parameter display with current values"""
-        self.show_parameters()
-        self.controller.apply_fonts(self)
+            self.after(0, lambda: self.upload_msg.config(text=f"Error fetching parameters: {str(e)}", foreground="red"))
 
 
-    def _update_parameters_from_response(self, response_bytes):
+    #  
+    def update_parameters_from_response(self, response_bytes):
         """Update parameter manager and display from pacemaker response"""
         if len(response_bytes) != 18:
             print(f"Invalid response length: {len(response_bytes)} bytes")
@@ -679,6 +604,12 @@ class ParameterPage(tk.Frame):
                 
         except Exception as e:
             print(f"Error updating parameters from response: {e}")
+
+
+    # refresh the param display with the current values
+    def refresh_display(self):
+        self.show_parameters()
+        self.controller.apply_fonts(self)
 
     def go_back(self):
         self.controller.show_frame(ModeSelectPage)
@@ -710,36 +641,18 @@ class EgramPage(tk.Frame):
         # Gain control
         ttk.Label(settings_frame, text="Gain:").pack(side="left", padx=5)
         self.gain_var = tk.DoubleVar(value=1.0)
-        ttk.Radiobutton(settings_frame, text="0.5x", variable=self.gain_var, value=0.5,
-                       command=self._update_plot).pack(side="left", padx=2)
-        ttk.Radiobutton(settings_frame, text="1x", variable=self.gain_var, value=1.0,
-                       command=self._update_plot).pack(side="left", padx=2)
-        ttk.Radiobutton(settings_frame, text="2x", variable=self.gain_var, value=2.0,
-                       command=self._update_plot).pack(side="left", padx=2)
+        ttk.Radiobutton(settings_frame, text="0.5x", variable=self.gain_var, value=0.5, command=self.update_plot).pack(side="left", padx=2)
+        ttk.Radiobutton(settings_frame, text="1x", variable=self.gain_var, value=1.0, command=self.update_plot).pack(side="left", padx=2)
+        ttk.Radiobutton(settings_frame, text="2x", variable=self.gain_var, value=2.0, command=self.update_plot).pack(side="left", padx=2)
         
         # High-pass filter control
         ttk.Label(settings_frame, text="  High-Pass Filter:").pack(side="left", padx=(15, 5))
         self.filter_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(settings_frame, text="Enable", variable=self.filter_var,
-                       command=self._update_plot).pack(side="left", padx=2)
+        ttk.Checkbutton(settings_frame, text="Enable", variable=self.filter_var, command=self.update_plot).pack(side="left", padx=2)
         
         ttk.Button(self, text="Back to Mode Select", command=self.go_back).pack(pady=5)
-        
-        # # Create matplotlib figure for graphing
-        # self.fig = Figure(figsize=(6, 4), dpi=100)
-        # # Create single plot for both signals
-        # self.ax = self.fig.add_subplot(111)
-        # # Configure plot
-        # self.ax.set_title('Egram Signals', fontsize=10)
-        # self.ax.set_xlabel('Time (s)', fontsize=8)
-        # self.ax.set_ylabel('Amplitude', fontsize=8)
-        # self.ax.grid(True, alpha=0.3)
-        # self.ax.legend(['Atrial', 'Ventricular'], loc='upper right', fontsize=8)
-        # self.fig.tight_layout()
-        # # Embed the figure in tkinter
-        # self.canvas = FigureCanvasTkAgg(self.fig, master=self)
 
-        # Two subplot figure: atrial (top), ventricular (bottom)
+        # Two subplots: atrial (top), ventricular (bottom)
         self.fig = Figure(figsize=(6, 5), dpi=100)
 
         self.ax_atrial = self.fig.add_subplot(211)
@@ -749,16 +662,14 @@ class EgramPage(tk.Frame):
         self.ax_atrial.set_title('Atrial Data', fontsize=10)
         self.ax_atrial.set_ylabel('Amplitude', fontsize=8)
         self.ax_atrial.grid(True, alpha=0.3)
-
         self.ax_atrial.set_ylim(-5, 5)
         self.ax_vent.set_ylim(-5, 5)
-
         self.ax_vent.set_title('Ventricular Data', fontsize=10)
         self.ax_vent.set_xlabel('Time (s)', fontsize=8)
         self.ax_vent.set_ylabel('Amplitude', fontsize=8)
         self.ax_vent.grid(True, alpha=0.3)
 
-        # Create line objects for each subplot
+        # Create lines for each subplot
         self.atrial_line, = self.ax_atrial.plot([], [], 'b-', linewidth=1)
         self.ventricular_line, = self.ax_vent.plot([], [], 'r-', linewidth=1)
 
@@ -769,7 +680,7 @@ class EgramPage(tk.Frame):
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         
-        # Data storage for plotting
+        # DATA STORAGE
         self.time_data = []
         self.atrial_data = []
         self.ventricular_data = []
@@ -785,10 +696,9 @@ class EgramPage(tk.Frame):
         # Matplotlib lines
         self.atrial_line, = self.ax_atrial.plot([], [], 'b-', linewidth=1, label='Atrial')
         self.ventricular_line, = self.ax_vent.plot([], [], 'r-', linewidth=1, label='Ventricular')
-        # self.ax_atrial.legend()
-        # self.ax_vent.legend()
 
-        
+    
+    # start the graph
     def start_egram(self):
         if not self.controller.pacemaker_connected:
             self.egram_msg.config(text="Cannot read egram - Pacemaker not connected", foreground="red")
@@ -803,12 +713,14 @@ class EgramPage(tk.Frame):
         self.egram_msg.config(text="Reading egram data...", foreground="green")
         
         # Read data in separate thread.
-        thread = Thread(target=self._fetch_egram_thread, daemon=True)
+        thread = Thread(target=self.fetch_egram_thread, daemon=True)
         thread.start()
+    
     
     def stop_egram(self):
         self.reading_egram = False
         self.egram_msg.config(text="Egram reading stopped", foreground="blue")
+    
     
     def clear_display(self):
         self.time_data.clear()
@@ -823,8 +735,9 @@ class EgramPage(tk.Frame):
         self.canvas.draw()
         self.egram_msg.config(text="Display cleared", foreground="blue")
     
-    def _fetch_egram_thread(self):
-        #Fetch from serial data
+    
+    #Fetch from serial data
+    def fetch_egram_thread(self):
         try:
             # Clear serial buffer
             if parameters.pacemaker_comm.ser.in_waiting > 0:
@@ -832,7 +745,7 @@ class EgramPage(tk.Frame):
             
             sample_count = 0
             
-            echo_packet = self._build_echo_packet()
+            echo_packet = self.build_echo_packet()
             parameters.pacemaker_comm.ser.write(echo_packet)
             print("Echo packet sent to start egram capture")
             
@@ -858,12 +771,12 @@ class EgramPage(tk.Frame):
                             current_time = time.time() - self.start_time
                             
                             self.after(0, lambda t=current_time, a=atrial_value, v=ventricular_value:
-                                       self._add_data_point(t, a, v))
+                                       self.add_data_point(t, a, v))
                             
                             sample_count += 1
                             print(f"Sample {sample_count}: Atrial={atrial_value:.6f}, Ventricular={ventricular_value:.6f}")
                             
-                            self.after(0, self._update_plot)
+                            self.after(0, self.update_plot)
                             
                             parameters.pacemaker_comm.ser.write(echo_packet)
                         
@@ -885,16 +798,18 @@ class EgramPage(tk.Frame):
             ))
             print(f"Egram thread error: {e}")
     
-    def _build_echo_packet(self):
-        """Build an echo packet to request egram data from pacemaker"""
+
+    # echo packet builder. will request egram data 
+    def build_echo_packet(self):
         return bytearray([
             0x16, 0x22, 1, 60, 120, 120, 35, 35,
             4, 4, 75, 75, 32, 25, 10, 30,
             8, 5
         ])
-    
-    def _add_data_point(self, time_val, atrial_val, ventricular_val):
-        """Add a data point to the buffers"""
+
+
+    # add data point
+    def add_data_point(self, time_val, atrial_val, ventricular_val):
         self.time_data.append(time_val)
         
         self.atrial_data_raw.append(atrial_val)
@@ -914,14 +829,17 @@ class EgramPage(tk.Frame):
             self.atrial_data.append(atrial_val * gain)
             self.ventricular_data.append(ventricular_val * gain)
         
+        # only keep track of up to 1000 samples
         if len(self.time_data) > 1000:
             self.time_data.pop(0)
             self.atrial_data.pop(0)
             self.ventricular_data.pop(0)
             self.atrial_data_raw.pop(0)
             self.ventricular_data_raw.pop(0)
-    
-    def _update_plot(self):
+
+
+    # update the plot for every new point
+    def update_plot(self):
         try:
             if len(self.time_data) == 0:
                 return
@@ -933,26 +851,19 @@ class EgramPage(tk.Frame):
             self.ventricular_data.clear()
             
             for i in range(len(self.atrial_data_raw)):
+                # apply the filter
                 if use_filter and i > 0:
                     a_f = (self.atrial_data_raw[i] - self.atrial_data_raw[i - 1]) / 2.0
                     v_f = (self.ventricular_data_raw[i] - self.ventricular_data_raw[i - 1]) / 2.0
                     
+                    # scale the FILTERED data point by the selected gain
                     self.atrial_data.append(a_f * gain)
                     self.ventricular_data.append(v_f * gain)
                 else:
+                    # scale the data point by the selected gain
                     self.atrial_data.append(self.atrial_data_raw[i] * gain)
                     self.ventricular_data.append(self.ventricular_data_raw[i] * gain)
-            
-            # self.atrial_line.set_data(self.time_data, self.atrial_data)
-            # self.ventricular_line.set_data(self.time_data, self.ventricular_data)
-            
-            # latest_time = self.time_data[-1]
-            
-            # self.ax.set_xlim(latest_time - self.display_window, latest_time)
-            # self.ax.relim()
-            # self.ax.autoscale_view(scalex=False, scaley=True)
-            
-            # self.canvas.draw()
+
             self.atrial_line.set_data(self.time_data, self.atrial_data)
             self.ventricular_line.set_data(self.time_data, self.ventricular_data)
 

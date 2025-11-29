@@ -4,10 +4,10 @@
         "password": "1234",
         "parameters": {
             "AOO": {
-                "Lower Rate Limit": 30,
-                "Upper Rate Limit": 50,
-                "Atrial Amplitude": 0.1,
-                "Atrial Pulse Width": 1
+                "Lower Rate Limit": "30",
+                "Upper Rate Limit": "50",
+                "Atrial Amplitude": "0.1",
+                "Atrial Pulse Width": "1"
             },
             "AAI": {
                 "Lower Rate Limit": 30,
